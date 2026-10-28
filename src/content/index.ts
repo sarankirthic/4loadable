@@ -2,15 +2,17 @@ import { chromeKV, loadSettings } from '../shared/storage';
 import { send, type DownloadResponse, type TabMsg } from '../shared/messaging';
 import type { IgnoredSummary, MediaItem, PageInfo, Settings } from '../shared/types';
 import { createToolbar } from './in-page-toolbar';
-import { scanDocument, scanThreadList } from './media-scanner';
-import { detectPage } from './page-detector';
+import { scanThreadList as scanFourchanThreadList } from '../adapters/fourchan';
+import { scanThreadList as scanArchiveThreadList } from '../adapters/archiveofsins';
+import { adapterFor, type SiteAdapter } from '../shared/site-adapter';
 
 const chromeApi = (globalThis as any).chrome;
-const page: PageInfo = detectPage(location, document.title);
+const adapter = adapterFor(new URL(location.href));
+const page = adapter?.detectPage(new URL(location.href), document.title);
 
-if (page.kind !== 'unsupported') void main();
+if (adapter && page && page.kind !== 'unsupported') void main(adapter, page);
 
-async function main() {
+async function main(adapter: SiteAdapter, page: PageInfo) {
   let settings: Settings = await loadSettings(chromeKV('local'));
   const known = new Set<string>();
   const elements = new Map<string, Element>();
@@ -29,7 +31,7 @@ async function main() {
   };
 
   const ctx = () => ({ board: page.board!, defaultThreadId: page.threadId ?? '', includeQuoted: settings.includeQuoted, baseUrl: location.href });
-  const threads = () => (page.kind === 'thread' ? [] : scanThreadList(document));
+  const threads = () => (page.kind === 'thread' ? [] : adapter.id === 'fourchan' ? scanFourchanThreadList(document) : scanArchiveThreadList(document));
 
   /** Scans run one at a time so progress and ordering stay coherent. */
   function scan(root: ParentNode, opts: { announce: boolean; reset?: boolean }) {
@@ -46,7 +48,7 @@ async function main() {
         });
         sent = true;
       };
-      const res = await scanDocument(root, ctx(), {
+      const res = await adapter.scan(root, ctx(), {
         known, elements, startOrder: order, onIgnored: (href, reason, detail) => { if (ignoredLinks.size < 5000) ignoredLinks.set(href, { reason, detail }); },
         shouldCancel: () => myToken !== cancelToken,
         onItems: (b) => { pending.push(...b); order += b.length; toolbar?.setCount(known.size); },
