@@ -37,7 +37,7 @@ export function MediaManager() {
   const counts = useMemo(() => countByType(items), [items]);
   const sum = useMemo(() => selectionSummary(items, selected), [items, selected]);
   const selectedItems = useMemo(() => items.filter((i) => selected.has(i.id)), [items, selected]);
-  const multi = scan?.page.kind === 'board' || scan?.page.kind === 'catalog';
+  const multi = scan?.page.site === 'fourchan' && (scan?.page.kind === 'board' || scan?.page.kind === 'catalog');
 
   // Optionally restore the last selection for this thread/board.
   const sourceKey = scan ? `lastSelection:${scan.page.board}/${scan.page.threadId ?? scan.page.kind}` : null;
@@ -123,7 +123,7 @@ export function MediaManager() {
                 onInvert={() => setSelected(invertSelection(shown, selected))} onSelectType={(t: MediaType) => setSelected(selectType(shown, t))} />
               <div className="toolbar"><div className="row">
                 <button onClick={rescan}>Rescan page</button>
-                {scan.page.kind === 'thread' && scan.page.board && scan.page.threadId && (
+                {scan.page.site === 'fourchan' && scan.page.kind === 'thread' && scan.page.board && scan.page.threadId && (
                   <button disabled={scan.scanning} title="Reads this thread's file list from 4chan's public API (one request) and adds anything the page scan missed"
                     onClick={() => { void send({ type: 'SCAN_THREADS', tabId: TAB_ID, board: scan.page.board!, threadIds: [scan.page.threadId!] }); notify('Checking the thread against 4chan’s API…'); }}>
                     Add missing files from 4chan API</button>

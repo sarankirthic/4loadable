@@ -2,6 +2,10 @@
 
 A Manifest V3 browser extension that scans 4chan threads, boards and catalogs, lets you select images, GIFs and videos, and downloads them into organized folders through your browser's download manager. No server, no analytics, no ads.
 
+## Supported sites
+- **4chan** (`boards.4chan.org`, `boards.4channel.org`) — on by default.
+- **archiveofsins.com**, a FoolFuuka-style 4chan archive — off by default. Turn it on from Settings → *Other sites* → *Enable on archiveofsins.com*; this triggers a one-time browser permission prompt (`chrome.permissions.request`), and only after you grant it does the extension's content script activate there. `archiveofsins.com` is **never** requested as a static permission, so installing or updating the extension never silently gains access to it. Supports thread and board pages: image/GIF/video detection, the same manager UI, and downloads laid out as `<root>/archiveofsins/<board>/<thread>/...`. The 4chan-only features (API cross-check against a thread's full file list, and the board-level "list every thread" API scan) are not available there, since archiveofsins has no equivalent public API — board pages are scanned directly from the page instead.
+
 ## Install and run
 
 ```bash
@@ -24,14 +28,14 @@ A prebuilt `dist/` is included, so you can load it without building.
 ## Using it
 - **Popup**: shows the board/thread, counts of images/GIFs/videos, **Scan page**, **Download all**, **Select media**, queue progress and recent activity.
 - **Media manager** (popup → *Select media*): grid or list, lazy thumbnails, search (filename, `>>postnumber`), type filters, sort, select all / by type / invert / shift-click range, preview (images and video) with spacebar to toggle selection and arrow keys to navigate, selected count and estimated size, then **Download selected** or **Download all**. The *Queue* tab has pause, resume, cancel, retry and error details. *History* exports the manifest as JSON or CSV.
-- **Missing files on a thread**: in the manager, *Add missing files from 4chan API* reads the thread's full file list from the public API (one request) and adds anything the page scan missed.
-- **Board pages and catalogs**: the *Threads* tab lists threads. You choose which to scan, or explicitly list every thread on the board. Scanning uses 4chan's public JSON API at one request per second and can be cancelled. Nothing is crawled unless you start it.
+- **Missing files on a thread** *(4chan only)*: in the manager, *Add missing files from 4chan API* reads the thread's full file list from the public API (one request) and adds anything the page scan missed.
+- **Board pages and catalogs** *(4chan only)*: the *Threads* tab lists threads. You choose which to scan, or explicitly list every thread on the board. Scanning uses 4chan's public JSON API at one request per second and can be cancelled. Nothing is crawled unless you start it. On archiveofsins.com board pages, media is scanned directly from the page instead — there is no equivalent API, so the *Threads* tab doesn't appear there.
 - **In-page toolbar**: small collapsible bar (Scan page, Select visible, Download selected, Manager). Disable it in Settings.
 
 Default save layout (inside your browser's Downloads folder):
 ```
-4lodable/<board>/<thread>/{images,gifs,videos}/<original filename>
-4lodable/<board>/<thread>/manifest.json
+4lodable/<site>/<board>/<thread>/{images,gifs,videos}/<original filename>
+4lodable/<site>/<board>/<thread>/manifest.json
 ```
 Layout, filename template (`{original} {server} {post} {thread} {board} {index} {type} {date}`), single-folder mode and duplicate handling are configurable.
 
@@ -50,8 +54,10 @@ Layout, filename template (`{original} {server} {post} {thread} {board} {index} 
 | `boards.4chan.org`, `boards.4channel.org` | Read posts on 4chan pages |
 | `a.4cdn.org` | 4chan's public API, only when scanning threads |
 | `i.4cdn.org` | Media host, used for optional availability checks |
+| `scripting` | Lets the extension turn on its archiveofsins.com content script only after you grant the optional permission below |
+| `archiveofsins.com` *(optional)* | Only requested when you click *Enable on archiveofsins.com* in Settings; lets the scanner read posts there |
 
-No `tabs`, `activeTab` or `scripting`, and no access to other sites. Downloads are allowed only from `i.4cdn.org` (and `isN.4chan.org` as a defensive allowance; edit `src/shared/media-detection.ts` if 4chan changes media hosts).
+No `tabs` or `activeTab`, and no static access to any site beyond 4chan and its API/media hosts. `archiveofsins.com` is requested at runtime via `chrome.permissions.request`, never listed in `host_permissions`. Downloads are allowed only from `i.4cdn.org` (and `isN.4chan.org` as a defensive allowance) and `archiveofsins.com`; edit `src/shared/media-detection.ts` / `src/adapters/archiveofsins.ts` if a site changes its media hosts.
 
 ## Privacy
 Everything stays on your device. The only network traffic is to 4chan: the downloads you start, the public API when you scan threads, and optional HEAD checks. Nothing is sent to any other server.
@@ -71,15 +77,16 @@ Everything stays on your device. The only network traffic is to 4chan: the downl
 ## Architecture
 ```
 src/shared       types, URL validation + thumbnail→original, filename safety, storage, manifest export, filter/sort/selection logic
-src/content      page-detector, media-scanner (chunked, cancellable, MutationObserver), in-page toolbar
+src/adapters     per-site SiteAdapter implementations (fourchan: thin wrapper; archiveofsins: FoolFuuka DOM scanner + URL parser)
+src/content      page-detector, media-scanner (chunked, cancellable, MutationObserver), in-page toolbar — all routed through adapterFor(url)
 src/background   queue-manager (persistent state machine, concurrency, retries), download-manager (planning, manifests, chrome.downloads port),
-                 thread-scanner (rate-limited API), scan-store, service-worker
+                 thread-scanner (rate-limited API), site-permissions (optional-permission grant + dynamic content-script registration), scan-store, service-worker
 src/popup, src/media-manager, src/options   React UI (own virtualized grid, no UI dependencies)
 tests            unit tests, HTML fixtures, DOM tests, and an end-to-end test
 ```
 **Build tool:** the build uses esbuild directly (the bundler Vite itself uses) rather than Vite. For an extension with five independent entry points, this removes configuration and works offline. `npm run dev` is watch mode, not a dev server.
 
 ## Tested / not tested
-Tested: 55 unit tests; 10 scanner tests against fixtures in Chromium; an end-to-end run of the built extension in Chromium against a local stand-in for 4chan (scan, dynamic posts, download, 404 handling, retry, skip-duplicates, manifest, history). The e2e test needs a self-signed cert: `openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/e2e/k.pem -out /tmp/e2e/c.pem -days 2 -subj "/CN=localhost"`.
+Tested: 76 unit tests; 15 scanner tests against fixtures in Chromium (4chan + archiveofsins); `tests/dom/e2e.mjs` is written to also drive the archiveofsins.com optional-permission grant (a real click on the Settings button, so it exercises an actual user gesture, not a stubbed one), a fresh-navigation content-script activation, scan and download, and a check that the archiveofsins page never shows the 4chan-only "Add missing files from 4chan API" button. The e2e test needs a self-signed cert: `openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/e2e/k.pem -out /tmp/e2e/c.pem -days 2 -subj "/CN=localhost"`.
 
-Not tested: real 4chan (markup is modeled on its documented structure and may differ, and 4chan X / other userscripts are untested), Firefox, Edge/Brave, the API thread-scan path end to end (unit-tested only), in-page toolbar actions, and interrupted downloads in a real browser (covered by unit tests with a fake downloads API).
+Not tested: real 4chan or real archiveofsins.com (markup for both is modeled on documented/captured structure and may drift), Firefox, Edge/Brave, the API thread-scan path end to end (unit-tested only), in-page toolbar actions, and interrupted downloads in a real browser (covered by unit tests with a fake downloads API). The archiveofsins.com e2e scenario above has been written but **not executed** in this environment — the sandbox used to build this feature blocks running `openssl` (needed to generate the test server's self-signed cert), so neither the original 4chan e2e test nor the new archiveofsins one could actually be run here; run `npm run test:e2e` yourself after generating the cert to verify, including whether Playwright's click can drive `chrome.permissions.request`'s user-gesture requirement headlessly.

@@ -21,6 +21,7 @@ const server = https.createServer({ key: readFileSync(process.env.E2E_KEY ?? '/t
     if (req.url.includes('1700000000005')) return send(404, 'text/plain', 'gone');    // simulate a deleted file
     return send(200, req.url.endsWith('.gif') ? 'image/gif' : req.url.endsWith('.webm') ? 'video/webm' : 'image/png', PNG);
   }
+  if (host === 'archiveofsins.com') return req.url.startsWith('/data/') ? send(200, req.url.endsWith('.gif') ? 'image/gif' : req.url.endsWith('.webm') ? 'video/webm' : 'image/png', PNG) : send(200, 'text/html', fx('archive-thread.html'));
   send(404, 'text/plain', 'no');
 });
 await new Promise((r) => server.listen(8443, r));
@@ -29,7 +30,7 @@ const userData = mkdtempSync(join(tmpdir(), 'cmd-e2e-'));
 const ctx = await chromium.launchPersistentContext(userData, {
   channel: 'chromium', headless: true, acceptDownloads: true, ignoreHTTPSErrors: true,
   args: [`--disable-extensions-except=${root}/dist`, `--load-extension=${root}/dist`, '--ignore-certificate-errors',
-    '--host-resolver-rules=MAP boards.4chan.org 127.0.0.1:8443, MAP a.4cdn.org 127.0.0.1:8443, MAP i.4cdn.org 127.0.0.1:8443'],
+    '--host-resolver-rules=MAP boards.4chan.org 127.0.0.1:8443, MAP a.4cdn.org 127.0.0.1:8443, MAP i.4cdn.org 127.0.0.1:8443, MAP archiveofsins.com 127.0.0.1:8443'],
 });
 let step = 0; const ok = (m) => console.log(`ok ${++step} - ${m}`);
 try {
@@ -113,6 +114,41 @@ try {
   // popup shows counts
   const pop = await ctx.newPage(); await pop.goto(`chrome-extension://${extId}/popup.html`);
   await pop.getByText('4loadable').first().waitFor(); ok('popup renders');
+
+  // archiveofsins.com: off by default, then granted via a real user-gesture click on the options page
+  const opts = await ctx.newPage(); await opts.goto(`chrome-extension://${extId}/options.html`);
+  await opts.getByRole('button', { name: 'Enable on archiveofsins.com' }).waitFor({ timeout: 10000 });
+  ok('archiveofsins.com access is off by default; options page offers to enable it');
+  await opts.getByRole('button', { name: 'Enable on archiveofsins.com' }).click();
+  await opts.getByText('Enabled on archiveofsins.com').waitFor({ timeout: 10000 });
+  const granted = await sw.evaluate(() => chrome.permissions.contains({ origins: ['https://archiveofsins.com/*'] }));
+  assert.equal(granted, true);
+  ok('chrome.permissions.request resolved true from the options-page click and the host permission is now granted');
+
+  // the dynamically registered content script activates on a fresh navigation to the now-permitted site
+  const apage = await ctx.newPage();
+  await apage.goto('https://archiveofsins.com/h/thread/1792000/');
+  await apage.waitForFunction(() => document.querySelector('#cmd-toolbar-host'), null, { timeout: 10000 });
+  ok('content script injected into archiveofsins.com after the optional permission was granted');
+  const atabId = await sw.evaluate(async () => (await chrome.tabs.query({ url: 'https://archiveofsins.com/*' }))[0].id);
+  let ascan;
+  for (let i = 0; i < 40 && !(ascan?.items?.length >= 3); i++) { await new Promise((r) => setTimeout(r, 250)); ascan = (await sw.evaluate((k) => chrome.storage.session.get(k), `scan:${atabId}`))[`scan:${atabId}`]; }
+  assert.equal(ascan.items.length, 3); assert.equal(ascan.page.site, 'archiveofsins');
+  ok(`archiveofsins thread scanned: ${ascan.items.map((i) => i.type).join(',')}`);
+
+  const amgr = await ctx.newPage();
+  await amgr.goto(`chrome-extension://${extId}/manager.html?tab=${atabId}`);
+  await amgr.getByText('Showing 3 of 3').waitFor({ timeout: 10000 });
+  assert.equal(await amgr.getByRole('button', { name: 'Add missing files from 4chan API' }).count(), 0, 'fourchan-only affordance stays hidden on archiveofsins pages');
+  await amgr.getByRole('button', { name: /Download all/ }).click();
+  await amgr.getByRole('button', { name: /^Download 3$/ }).click();
+  let aq = [];
+  for (let i = 0; i < 60; i++) { await new Promise((r) => setTimeout(r, 250)); aq = (await sw.evaluate(() => chrome.storage.local.get('queue'))).queue ?? []; if (aq.filter((x) => x.site === 'archiveofsins').length >= 3 && aq.filter((x) => x.site === 'archiveofsins').every((x) => x.status === 'complete')) break; }
+  const amine = aq.filter((x) => x.site === 'archiveofsins');
+  assert.equal(amine.length, 3); assert.ok(amine.every((x) => x.status === 'complete'), 'all 3 archiveofsins files complete');
+  assert.ok(amine.every((x) => x.path.startsWith('4lodable/archiveofsins/h/')), 'paths are prefixed with the site segment');
+  ok('archiveofsins.com: scanned, downloaded and queued under the site-prefixed folder layout, with no cross-contamination from 4chan state');
+
   console.log(`\nE2E passed (${step} checks)`);
 } catch (e) { console.error('E2E FAILED:', e); process.exitCode = 1; }
 finally { await ctx.close(); server.close(); }
