@@ -1,0 +1,7 @@
+node_modules/
+dist/
+dist.zip
+archive-fixtures.zip
+*.zip
+.DS_Store
+.idea/

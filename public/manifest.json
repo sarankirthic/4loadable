@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "4loadable",
+  "version": "1.0.0",
+  "description": "Scan 4chan boards and threads, select images, GIFs and videos, and download them into organized folders. Everything stays on your device.",
+  "minimum_chrome_version": "116",
+  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "action": { "default_popup": "popup.html", "default_title": "4loadable" },
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://boards.4chan.org/*", "https://boards.4channel.org/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_ui": { "page": "options.html", "open_in_tab": true },
+  "permissions": ["downloads", "storage", "alarms"],
+  "host_permissions": [
+    "https://boards.4chan.org/*",
+    "https://boards.4channel.org/*",
+    "https://a.4cdn.org/*",
+    "https://i.4cdn.org/*"
+  ]
+}
