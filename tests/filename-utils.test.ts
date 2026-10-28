@@ -10,7 +10,7 @@ const opts: DownloadOptions = {
   filenameTemplate: '{post}_{original}', duplicates: 'rename', saveAs: false, writeManifest: true,
 };
 const item = (o: Partial<MediaItem> = {}): MediaItem => ({
-  id: 'g:1700000000001', url: 'https://i.4cdn.org/g/1700000000001.png', board: 'g', threadId: '1000', postNo: '1001',
+  id: 'fourchan:g:1700000000001', url: 'https://i.4cdn.org/g/1700000000001.png', site: 'fourchan', board: 'g', threadId: '1000', postNo: '1001',
   tim: '1700000000001', ext: 'png', type: 'image', originalName: 'cat', order: 0, ...o,
 });
 
@@ -41,18 +41,18 @@ test('sanitizeFilename preserves a safe extension and truncates long names', () 
   assert.ok(long.endsWith('.webm'));
 });
 
-test('buildTargetPath organises by board/thread/type', () => {
-  assert.equal(buildTargetPath(item(), opts, { index: 1, date: '2026-10-25' }).path, '4lodable/g/1000/images/cat.png');
-  assert.equal(buildTargetPath(item({ type: 'gif', ext: 'gif' }), opts, { index: 1, date: 'd' }).path, '4lodable/g/1000/gifs/cat.gif');
-  assert.equal(buildTargetPath(item({ type: 'video', ext: 'webm' }), opts, { index: 1, date: 'd' }).path, '4lodable/g/1000/videos/cat.webm');
+test('buildTargetPath organises by site/board/thread/type', () => {
+  assert.equal(buildTargetPath(item(), opts, { index: 1, date: '2026-10-25' }).path, '4lodable/fourchan/g/1000/images/cat.png');
+  assert.equal(buildTargetPath(item({ type: 'gif', ext: 'gif' }), opts, { index: 1, date: 'd' }).path, '4lodable/fourchan/g/1000/gifs/cat.gif');
+  assert.equal(buildTargetPath(item({ type: 'video', ext: 'webm' }), opts, { index: 1, date: 'd' }).path, '4lodable/fourchan/g/1000/videos/cat.webm');
   assert.equal(buildTargetPath(item(), { ...opts, organize: 'flat' }, { index: 1, date: 'd' }).path, '4lodable/cat.png');
-  assert.equal(buildTargetPath(item(), { ...opts, organize: 'board-thread', subfolder: 'my/stuff' }, { index: 1, date: 'd' }).path, '4lodable/my/stuff/g/1000/cat.png');
+  assert.equal(buildTargetPath(item(), { ...opts, organize: 'board-thread', subfolder: 'my/stuff' }, { index: 1, date: 'd' }).path, '4lodable/my/stuff/fourchan/g/1000/cat.png');
 });
 
 test('filename modes: server name and template', () => {
-  assert.equal(buildTargetPath(item(), { ...opts, filenameMode: 'server' }, { index: 1, date: 'd' }).path, '4lodable/g/1000/images/1700000000001.png');
+  assert.equal(buildTargetPath(item(), { ...opts, filenameMode: 'server' }, { index: 1, date: 'd' }).path, '4lodable/fourchan/g/1000/images/1700000000001.png');
   const t = buildTargetPath(item(), { ...opts, filenameMode: 'template', filenameTemplate: '{board}-{thread}-{post}-{index}_{original}' }, { index: 7, date: 'd' });
-  assert.equal(t.path, '4lodable/g/1000/images/g-1000-1001-0007_cat.png');
+  assert.equal(t.path, '4lodable/fourchan/g/1000/images/g-1000-1001-0007_cat.png');
 });
 
 test('malicious original names and roots cannot escape the download folder', () => {

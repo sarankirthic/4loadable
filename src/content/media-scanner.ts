@@ -94,7 +94,7 @@ export async function scanDocument(root: ParentNode, ctx: ScanContext, opts: Sca
       }
       if (!hasContainers) usedFallback = true;
       if (!ctx.includeQuoted && a.closest(EXCLUDED)) continue;
-      const id = mediaId(p.board, p.tim);
+      const id = mediaId('fourchan', p.board, p.tim);
       opts.elements?.set(id, a);
       if (known.has(id)) continue;
       known.add(id);
@@ -104,7 +104,7 @@ export async function scanDocument(root: ParentNode, ctx: ScanContext, opts: Sca
       const meta = readMeta(post, a);
       const name = meta.rawName ? splitName(meta.rawName).base : p.tim;
       batch.push({
-        id, url: p.url, thumbUrl: thumbUrlFor(p.board, p.tim), board: p.board, threadId, postNo, tim: p.tim,
+        id, url: p.url, thumbUrl: thumbUrlFor(p.board, p.tim), site: 'fourchan', board: p.board, threadId, postNo, tim: p.tim,
         ext: p.ext, type: p.type, originalName: name || p.tim, size: meta.size, width: meta.width, height: meta.height,
         order: order++,
       });

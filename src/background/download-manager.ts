@@ -43,7 +43,7 @@ export function planDownloads(inp: PlanInput): Plan {
   picked.forEach((p, i) => {
     if (!isSafeRelativePath(paths[i])) { skipped.push({ id: p.item.id, reason: 'Unsafe generated path' }); return; }
     entries.push({
-      id: p.item.id, url: p.item.url, path: paths[i], type: p.item.type, board: p.item.board, threadId: p.item.threadId,
+      id: p.item.id, url: p.item.url, path: paths[i], type: p.item.type, site: p.item.site, board: p.item.board, threadId: p.item.threadId,
       postNo: p.item.postNo, originalName: p.item.originalName ? `${p.item.originalName}.${p.item.ext}` : `${p.item.tim}.${p.item.ext}`,
       ext: p.item.ext, md5: p.item.md5, size: p.item.size,
       conflict: inp.options.duplicates === 'prompt' ? 'prompt' : 'uniquify', saveAs: inp.options.saveAs,
@@ -55,7 +55,7 @@ export function planDownloads(inp: PlanInput): Plan {
 
 export function historyFromItem(it: QueueItem, now = Date.now()): HistoryRecord {
   return {
-    id: it.id, sourceUrl: it.url, originalFilename: it.originalName, mediaType: it.type, board: it.board,
+    id: it.id, sourceUrl: it.url, originalFilename: it.originalName, mediaType: it.type, site: it.site, board: it.board,
     threadId: it.threadId, postNo: it.postNo, savedPath: it.savedPath ?? it.path, downloadId: it.downloadId,
     status: it.status === 'complete' ? 'complete' : it.status === 'skipped' ? 'skipped' : 'failed',
     error: it.error, timestamp: now,

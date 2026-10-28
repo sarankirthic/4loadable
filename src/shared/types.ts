@@ -2,10 +2,11 @@ export type MediaType = 'image' | 'gif' | 'video';
 export type PageKind = 'thread' | 'board' | 'catalog' | 'unsupported';
 
 export interface MediaItem {
-  /** Stable identity: `${board}:${tim}` (tim is 4chan's unique upload id). */
+  /** Stable identity: `${site}:${board}:${tim}` (tim is the site's unique upload id). */
   id: string;
   url: string;
   thumbUrl?: string;
+  site: string;
   board: string;
   threadId: string;
   postNo: string;
@@ -23,6 +24,7 @@ export interface MediaItem {
 
 export interface PageInfo {
   kind: PageKind;
+  site: string;
   board?: string;
   threadId?: string;
   url: string;
@@ -92,6 +94,7 @@ export interface QueueItem {
   url: string;
   path: string; // relative to the browser's download directory
   type: MediaType;
+  site: string;
   board: string;
   threadId: string;
   postNo: string;
@@ -123,6 +126,7 @@ export interface HistoryRecord {
   sourceUrl: string;
   originalFilename: string;
   mediaType: MediaType;
+  site: string;
   board: string;
   threadId: string;
   postNo: string;

@@ -61,6 +61,7 @@ test('file size parsing uses binary units', () => {
   assert.equal(parseFileSize('1.2 MB'), Math.round(1.2 * 1024 * 1024));
   assert.equal(parseFileSize('850 KB'), 850 * 1024);
   assert.equal(parseFileSize('12 B'), 12);
+  assert.equal(parseFileSize('675KiB'), 675 * 1024);
   assert.equal(parseFileSize('nothing'), undefined);
 });
 
@@ -68,7 +69,7 @@ test('API posts become items; deleted and file-less posts are skipped', () => {
   const ok = itemFromApiPost('g', '1000', { no: 1001, filename: 'reply', ext: '.webm', tim: 1700000000102, fsize: 5, w: 1, h: 2, md5: 'x' });
   assert.equal(ok?.type, 'video');
   assert.equal(ok?.url, 'https://i.4cdn.org/g/1700000000102.webm');
-  assert.equal(ok?.id, mediaId('g', '1700000000102'));
+  assert.equal(ok?.id, mediaId('fourchan', 'g', '1700000000102'));
   assert.equal(itemFromApiPost('g', '1', { no: 2 }), null);
   assert.equal(itemFromApiPost('g', '1', { no: 2, tim: 1700000000103, ext: '.jpg', filedeleted: 1 }), null);
   assert.equal(itemFromApiPost('g', '1', { no: 2, tim: 1700000000103, ext: '.exe' }), null);

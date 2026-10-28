@@ -4,7 +4,7 @@ import { DEFAULT_FILTER, countByType, filterAndSort, formatBytes, invertSelectio
 import type { MediaItem } from '../src/shared/types.ts';
 
 const mk = (n: number, o: Partial<MediaItem> = {}): MediaItem => ({
-  id: 'g:' + n, url: 'u', board: 'g', threadId: '10', postNo: String(100 + n), tim: String(1700000000000 + n), ext: 'png', type: 'image', originalName: `file${n}`, order: n, ...o,
+  id: 'g:' + n, url: 'u', site: 'fourchan', board: 'g', threadId: '10', postNo: String(100 + n), tim: String(1700000000000 + n), ext: 'png', type: 'image', originalName: `file${n}`, order: n, ...o,
 });
 const items = [mk(1, { size: 300 }), mk(2, { type: 'gif', ext: 'gif', size: 100, originalName: 'Zeta' }), mk(3, { type: 'video', ext: 'webm', originalName: 'alpha' }), mk(4, { size: 200, threadId: '5' })];
 const ids = (l: MediaItem[]) => l.map((i) => i.id.slice(2)).join('');

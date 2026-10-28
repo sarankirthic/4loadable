@@ -88,15 +88,16 @@ export function thumbnailOriginalCandidates(thumbUrl: string): string[] {
     .filter((x): x is string => !!x);
 }
 
-export const mediaId = (board: string, tim: string) => `${board.toLowerCase()}:${tim}`;
+export const mediaId = (site: string, board: string, tim: string) => `${site.toLowerCase()}:${board.toLowerCase()}:${tim}`;
 
-/** "1.2 MB" -> bytes (4chan displays binary units). */
+/** "1.2 MB" -> bytes (binary units; archive sites use KiB/MiB/GiB, 4chan uses KB/MB/GB — treated the same). */
 export function parseFileSize(text: string): number | undefined {
-  const m = /([\d.,]+)\s*(B|KB|MB|GB)\b/i.exec(text ?? '');
+  const m = /([\d.,]+)\s*(B|KB|KiB|MB|MiB|GB|GiB)\b/i.exec(text ?? '');
   if (!m) return undefined;
   const n = parseFloat(m[1].replace(/,/g, ''));
   if (!Number.isFinite(n)) return undefined;
-  const mult = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3 }[m[2].toUpperCase() as 'B' | 'KB' | 'MB' | 'GB'];
+  const unit = m[2].toUpperCase().replace('I', '') as 'B' | 'KB' | 'MB' | 'GB';
+  const mult = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3 }[unit];
   return Math.round(n * mult);
 }
 
@@ -111,8 +112,8 @@ export function itemFromApiPost(board: string, threadId: string, p: ApiPost, ord
   const parsed = parseMediaUrl(`https://i.4cdn.org/${board}/${p.tim}${p.ext}`);
   if (!parsed || parsed.isThumb) return null;
   return {
-    id: mediaId(parsed.board, parsed.tim), url: parsed.url, thumbUrl: thumbUrlFor(parsed.board, parsed.tim),
-    board: parsed.board, threadId, postNo: String(p.no), tim: parsed.tim, ext: parsed.ext, type: parsed.type,
+    id: mediaId('fourchan', parsed.board, parsed.tim), url: parsed.url, thumbUrl: thumbUrlFor(parsed.board, parsed.tim),
+    site: 'fourchan', board: parsed.board, threadId, postNo: String(p.no), tim: parsed.tim, ext: parsed.ext, type: parsed.type,
     originalName: p.filename ?? parsed.tim, size: p.fsize, width: p.w, height: p.h, md5: p.md5, order,
   };
 }

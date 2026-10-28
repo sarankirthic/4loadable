@@ -9,24 +9,24 @@ import {
 import type { HistoryRecord, MediaItem, QueueItem } from '../src/shared/types.ts';
 
 const mk = (n: number, o: Partial<MediaItem> = {}): MediaItem => ({
-  id: `g:${1700000000000 + n}`, url: `https://i.4cdn.org/g/${1700000000000 + n}.png`, board: 'g', threadId: '9', postNo: String(n),
+  id: `fourchan:g:${1700000000000 + n}`, url: `https://i.4cdn.org/g/${1700000000000 + n}.png`, site: 'fourchan', board: 'g', threadId: '9', postNo: String(n),
   tim: String(1700000000000 + n), ext: 'png', type: 'image', originalName: 'image', order: n, ...o,
 });
 const base = { options: { ...DEFAULT_SETTINGS }, settings: { fullResOnly: true }, history: {}, batchId: 'b', date: '2026-10-25' };
 const hist = (id: string, o: Partial<HistoryRecord> = {}): HistoryRecord => ({
-  id, sourceUrl: 'u', originalFilename: 'a.png', mediaType: 'image', board: 'g', threadId: '9', postNo: '1', savedPath: 'p', status: 'complete', timestamp: 1, ...o,
+  id, sourceUrl: 'u', originalFilename: 'a.png', mediaType: 'image', site: 'fourchan', board: 'g', threadId: '9', postNo: '1', savedPath: 'p', status: 'complete', timestamp: 1, ...o,
 });
 
 test('planner gives unique paths to files sharing the same original name', () => {
   const { entries } = planDownloads({ ...base, items: [mk(1), mk(2), mk(3)] });
   assert.equal(new Set(entries.map((e) => e.path.toLowerCase())).size, 3);
-  assert.ok(entries.every((e) => e.path.startsWith('4lodable/g/9/images/image')));
+  assert.ok(entries.every((e) => e.path.startsWith('4lodable/fourchan/g/9/images/image')));
 });
 
 test('manifest folder is the thread folder, shared by images/gifs/videos', () => {
   const gif = mk(2, { type: 'gif', ext: 'gif', url: 'https://i.4cdn.org/g/1700000000002.gif' });
   const { entries } = planDownloads({ ...base, items: [mk(1), gif] });
-  assert.deepEqual([...new Set(entries.map((e) => e.manifestDir))], ['4lodable/g/9']);
+  assert.deepEqual([...new Set(entries.map((e) => e.manifestDir))], ['4lodable/fourchan/g/9']);
   assert.equal(planDownloads({ ...base, options: { ...base.options, writeManifest: false }, items: [mk(1)] }).entries[0].manifestDir, undefined);
 });
 
@@ -36,16 +36,16 @@ test('planner filters by type, invalid URLs, duplicates and thumbnails', () => {
     mk(3, { url: 'https://evil.example/x.png' }), mk(4, { url: 'https://i.4cdn.org/g/1700000000004s.jpg', ext: 'jpg' }),
   ];
   const { entries, skipped } = planDownloads({ ...base, items, types: { image: true, gif: false, video: true } });
-  assert.deepEqual(entries.map((e) => e.id), ['g:1700000000001']);
+  assert.deepEqual(entries.map((e) => e.id), ['fourchan:g:1700000000001']);
   const reasons = skipped.map((s) => s.reason).join('|');
   assert.match(reasons, /Duplicate/); assert.match(reasons, /gif files excluded/); assert.match(reasons, /untrusted/); assert.match(reasons, /Thumbnail/);
 });
 
 test('skip mode skips known downloads unless the browser says the file is gone', () => {
-  const history = { 'g:1700000000001': hist('g:1700000000001', { downloadId: 5 }), 'g:1700000000002': hist('g:1700000000002', { downloadId: 6 }) };
+  const history = { 'fourchan:g:1700000000001': hist('fourchan:g:1700000000001', { downloadId: 5 }), 'fourchan:g:1700000000002': hist('fourchan:g:1700000000002', { downloadId: 6 }) };
   const opts = { ...base.options, duplicates: 'skip' as const };
   const r = planDownloads({ ...base, options: opts, history, missingDownloadIds: new Set([6]), items: [mk(1), mk(2), mk(3)] });
-  assert.deepEqual(r.entries.map((e) => e.id), ['g:1700000000002', 'g:1700000000003']);
+  assert.deepEqual(r.entries.map((e) => e.id), ['fourchan:g:1700000000002', 'fourchan:g:1700000000003']);
   assert.equal(r.skipped[0].reason, 'Already downloaded');
   const rename = planDownloads({ ...base, history, items: [mk(1)] });
   assert.equal(rename.entries.length, 1, 'rename mode re-downloads with a new name');
@@ -54,8 +54,8 @@ test('skip mode skips known downloads unless the browser says the file is gone',
 });
 
 test('planner avoids paths already taken by queued items', () => {
-  const { entries } = planDownloads({ ...base, items: [mk(1)], takenPaths: new Set(['4lodable/g/9/images/image.png']) });
-  assert.equal(entries[0].path, '4lodable/g/9/images/image-2.png');
+  const { entries } = planDownloads({ ...base, items: [mk(1)], takenPaths: new Set(['4lodable/fourchan/g/9/images/image.png']) });
+  assert.equal(entries[0].path, '4lodable/fourchan/g/9/images/image-2.png');
 });
 
 test('manifests are produced once all items of a batch are finished', () => {

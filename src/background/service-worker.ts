@@ -126,7 +126,7 @@ async function runThreadScan(tabId: number, board: string, ids: string[]) {
   threadScans.get(tabId)?.abort();
   const ac = new AbortController();
   threadScans.set(tabId, ac);
-  const page = (await scans.get(tabId))?.page ?? { kind: 'board' as const, board, url: '', title: board };
+  const page = (await scans.get(tabId))?.page ?? { kind: 'board' as const, site: 'fourchan', board, url: '', title: board };
   await scans.update(tabId, page, (s) => { s.scanning = true; s.progress = { done: 0, total: ids.length, label: 'Starting' }; });
   await scanThreads(board, ids, realDeps, {
     onItems: async (items, done, total, label) => {

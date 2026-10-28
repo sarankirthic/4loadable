@@ -47,7 +47,7 @@ export interface PathContext { index: number; date: string }
 /** `threadDir` is the folder that should hold manifest.json (the thread level, above images/gifs/videos). */
 export function buildTargetPath(item: MediaItem, o: DownloadOptions, ctx: PathContext): { dir: string; threadDir: string; path: string } {
   const dirParts = [...sanitizeFolderPath(o.rootFolder), ...sanitizeFolderPath(o.subfolder)];
-  if (o.organize !== 'flat') dirParts.push(sanitizeSegment(item.board, '_'), sanitizeSegment(item.threadId, '_'));
+  if (o.organize !== 'flat') dirParts.push(sanitizeSegment(item.site, '_'), sanitizeSegment(item.board, '_'), sanitizeSegment(item.threadId, '_'));
   const threadDir = dirParts.join('/');
   if (o.organize === 'board-thread-type') dirParts.push(typeFolder(item.type));
   const dir = dirParts.join('/');

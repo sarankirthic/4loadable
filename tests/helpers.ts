@@ -57,6 +57,6 @@ export function makeEnv(extra: Partial<QueueEnv> = {}) {
 
 export const entry = (n: number, o: Partial<NewQueueItem> = {}): NewQueueItem => ({
   id: `g:${1700000000000 + n}`, url: `https://i.4cdn.org/g/${1700000000000 + n}.png`, path: `dl/g/1/images/f${n}.png`,
-  type: 'image', board: 'g', threadId: '1', postNo: String(n), originalName: `f${n}.png`, ext: 'png',
+  type: 'image', site: 'fourchan', board: 'g', threadId: '1', postNo: String(n), originalName: `f${n}.png`, ext: 'png',
   conflict: 'uniquify', saveAs: false, batchId: 'b1', ...o,
 });
