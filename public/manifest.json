@@ -15,11 +15,12 @@
     }
   ],
   "options_ui": { "page": "options.html", "open_in_tab": true },
-  "permissions": ["downloads", "storage", "alarms"],
+  "permissions": ["downloads", "storage", "alarms", "scripting"],
   "host_permissions": [
     "https://boards.4chan.org/*",
     "https://boards.4channel.org/*",
     "https://a.4cdn.org/*",
     "https://i.4cdn.org/*"
-  ]
+  ],
+  "optional_host_permissions": ["https://archiveofsins.com/*"]
 }

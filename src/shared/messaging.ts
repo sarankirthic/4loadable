@@ -13,7 +13,9 @@ export type Msg =
   | { type: 'CANCEL_THREAD_SCAN'; tabId: number }
   | { type: 'CHECK_LINKS'; tabId: number; ids: string[] }
   | { type: 'SELECT'; mode: 'replace' | 'add'; ids: string[]; tabId?: number }
-  | { type: 'OPEN_MANAGER'; tabId?: number };
+  | { type: 'OPEN_MANAGER'; tabId?: number }
+  | { type: 'REQUEST_SITE_PERMISSION'; site: 'archiveofsins' }
+  | { type: 'SITE_PERMISSION_STATUS'; site: 'archiveofsins' };
 
 // background -> content
 export type TabMsg = { type: 'SCAN_PAGE' } | { type: 'CANCEL_SCAN' } | { type: 'GET_VISIBLE_IDS' } | { type: 'SETTINGS_CHANGED' };

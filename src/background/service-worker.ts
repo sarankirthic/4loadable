@@ -8,6 +8,7 @@ import {
 import { QueueManager } from './queue-manager';
 import { ScanStore } from './scan-store';
 import { listBoardThreads, realDeps, scanThreads, validBoard } from './thread-scanner';
+import { chromePermissionsPort, hasSitePermission, requestSitePermission } from './site-permissions';
 
 const chromeApi = (globalThis as any).chrome;
 const local = chromeKV('local');
@@ -226,6 +227,8 @@ chromeApi.runtime.onMessage.addListener((msg: Msg, sender: any, sendResponse: (r
         await chromeApi.tabs.create({ url: chromeApi.runtime.getURL(`manager.html${tabId != null ? `?tab=${tabId}` : ''}`) });
         return { ok: true };
       }
+      case 'REQUEST_SITE_PERMISSION': return { ok: await requestSitePermission(msg.site, chromePermissionsPort()) };
+      case 'SITE_PERMISSION_STATUS': return { ok: await hasSitePermission(msg.site, chromePermissionsPort()) };
       default: return { ok: false };
     }
   })().then(sendResponse, (e) => sendResponse({ ok: false, error: String(e?.message ?? e) }));

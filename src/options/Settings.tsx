@@ -1,11 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DEFAULT_SETTINGS } from '../shared/storage';
 import type { Settings as S } from '../shared/types';
 import { useSettings } from '../ui/hooks';
+import { send } from '../shared/messaging';
 
 export function SettingsPage() {
   const [s, update, loaded] = useSettings();
   const [saved, setSaved] = useState(false);
+  const [archiveEnabled, setArchiveEnabled] = useState<boolean | null>(null);
+  useEffect(() => { void send<{ ok: boolean }>({ type: 'SITE_PERMISSION_STATUS', site: 'archiveofsins' }).then((r) => setArchiveEnabled(!!r?.ok)); }, []);
+  const enableArchive = async () => {
+    const r = await send<{ ok: boolean }>({ type: 'REQUEST_SITE_PERMISSION', site: 'archiveofsins' });
+    setArchiveEnabled(!!r?.ok);
+  };
   const set = async (p: Partial<S>) => { await update(p); setSaved(true); setTimeout(() => setSaved(false), 1200); };
   const num = (k: 'maxConcurrent' | 'maxRetries' | 'confirmThreshold', min: number, max: number) => (
     <input type="number" min={min} max={max} value={s[k]} onChange={(e) => set({ [k]: Number(e.target.value) } as Partial<S>)} style={{ width: 90 }} />
@@ -48,6 +55,13 @@ export function SettingsPage() {
         <div><button onClick={() => confirm('Reset all settings to defaults?') && set(DEFAULT_SETTINGS)}>Reset to defaults</button></div>
       </section>
 
+      <section><h2>Other sites</h2>
+        <p style={{ margin: 0 }}>archiveofsins.com (a 4chan archive) is supported but off by default — it needs its own browser permission before this extension can read its pages. Turning it on lets the extension scan and download media from archiveofsins.com the same way it does on 4chan: locally only, no analytics.</p>
+        <div className="row" style={{ marginTop: 8 }}>
+          {archiveEnabled ? <span className="muted">Enabled on archiveofsins.com</span> : <button onClick={() => void enableArchive()} disabled={archiveEnabled === null}>Enable on archiveofsins.com</button>}
+        </div>
+      </section>
+
       <section><h2>Privacy</h2>
         <p style={{ margin: 0 }}>Everything stays on your device. The extension has no server, analytics, or ads. It sends no media URLs or browsing history anywhere. Its only network requests go to 4chan itself: the file downloads you start, 4chan’s public thread API when you scan threads (limited to one request per second), and optional HEAD checks when you click "Check for deleted files". Settings, scan results, the queue and history are kept in your browser’s extension storage.</p>
       </section>
@@ -60,6 +74,8 @@ export function SettingsPage() {
           <dt>boards.4chan.org, boards.4channel.org</dt><dd>Lets the scanner read posts on 4chan pages.</dd>
           <dt>a.4cdn.org</dt><dd>4chan’s public JSON API, used only when you scan threads from a board or catalog.</dd>
           <dt>i.4cdn.org</dt><dd>4chan’s media host, used for optional availability checks.</dd>
+          <dt>scripting</dt><dd>Lets the extension turn its archiveofsins.com scanner on only after you grant the optional permission above.</dd>
+          <dt>archiveofsins.com (optional)</dt><dd>Only requested if you click "Enable on archiveofsins.com" above; lets the scanner read posts on that archive.</dd>
         </dl>
       </section>
     </div>
