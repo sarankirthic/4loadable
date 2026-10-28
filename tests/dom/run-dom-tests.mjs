@@ -13,6 +13,11 @@ const bundle = await esbuild.build({
   bundle: true, write: false, format: 'iife', absWorkingDir: root,
 });
 const code = bundle.outputFiles[0].text;
+const archiveBundle = await esbuild.build({
+  stdin: { contents: `import {scan,scanThreadList} from './src/adapters/archiveofsins.ts'; window.__a={scan,scanThreadList};`, resolveDir: root, loader: 'ts' },
+  bundle: true, write: false, format: 'iife', absWorkingDir: root,
+});
+const archiveCode = archiveBundle.outputFiles[0].text;
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
@@ -30,6 +35,18 @@ const run = async (html, ctx, extra = '') => {
   }, [ctx, extra]);
 };
 const ctx = (o = {}) => ({ board: 'g', defaultThreadId: '1000', includeQuoted: false, baseUrl: 'https://boards.4chan.org/g/thread/1000', ...o });
+const runArchive = async (html, ctx, extra = '') => {
+  await page.setContent(html);
+  await page.addScriptTag({ content: archiveCode });
+  return page.evaluate(async ([ctx, extra]) => {
+    const known = new Set(), elements = new Map();
+    const r = await window.__a.scan(document, ctx, { known, elements, chunkSize: 2 });
+    let second = null;
+    if (extra === 'twice') second = (await window.__a.scan(document, ctx, { known, elements })).items.length;
+    return { items: r.items, warning: r.warning };
+  }, [ctx, extra]);
+};
+const actx = (o = {}) => ({ board: 'h', defaultThreadId: '8968486', includeQuoted: false, baseUrl: 'https://archiveofsins.com/h/thread/8968486/', ...o });
 
 await t('thread: finds originals, ignores thumbs, stray text links, untrusted hosts, inline quote copies', async () => {
   const r = await run(fx('thread.html'), ctx(), 'twice');
@@ -94,5 +111,38 @@ await t('cancellation stops a scan between chunks', async () => {
   const r = await page.evaluate(async (c) => (await window.__s.scanDocument(document, c, { chunkSize: 1, shouldCancel: () => true })).cancelled, ctx());
   assert.equal(r, true);
 });
+await t('archive thread: image/gif/webm posts yield 3 items, removed-file post is ignored, text-only post yields nothing', async () => {
+  const r = await runArchive(fx('archive-thread.html'), actx());
+  assert.deepEqual(r.items.map((i) => i.type), ['image', 'gif', 'video']);
+  assert.ok(r.items.every((i) => i.site === 'archiveofsins'));
+  const [img, gif, webm] = r.items;
+  assert.equal(img.originalName, 'my vacation photo with a very long name');
+  assert.equal(img.size, Math.round(2.5 * 1024 * 1024));
+  assert.equal([img.width, img.height].join('x'), '1920x1080');
+  assert.equal(gif.originalName, 'funny'); assert.equal(gif.size, 850 * 1024);
+  assert.equal(webm.originalName, 'clip');
+});
+await t('archive thread: removed-file post reports onIgnored("removed", ...) and no item', async () => {
+  await page.setContent(fx('archive-thread.html')); await page.addScriptTag({ content: archiveCode });
+  const r = await page.evaluate(async (c) => {
+    const ig = [];
+    const x = await window.__a.scan(document, c, { onIgnored: (h, reason, detail) => ig.push([reason, detail]) });
+    return { n: x.items.length, ig };
+  }, actx());
+  assert.equal(r.n, 3);
+  assert.deepEqual(r.ig.map((x) => x[0]), ['removed']);
+});
+await t('archive board: lists 3 threads', async () => {
+  const r = await runArchive(fx('archive-board.html'), actx({ defaultThreadId: '' }));
+  assert.equal(r.items.length, 3);
+  await page.setContent(fx('archive-board.html')); await page.addScriptTag({ content: archiveCode });
+  const ids = await page.evaluate(() => window.__a.scanThreadList(document).map((x) => x.id));
+  assert.deepEqual(ids, ['9000001', '9000002', '9000003']);
+});
+await t('archive: changed page structure falls back to generic detection and warns', async () => {
+  const r = await runArchive(fx('archive-changed-layout.html'), actx());
+  assert.equal(r.items.length, 2); assert.match(r.warning, /layout looks different/);
+});
+
 await browser.close();
 console.log(`\n${passed} DOM tests passed`);

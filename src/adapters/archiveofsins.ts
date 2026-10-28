@@ -1,6 +1,8 @@
-import { classifyExt, type ParsedMediaUrl } from '../shared/media-detection';
-import type { PageInfo } from '../shared/types';
+import { classifyExt, mediaId, parseFileSize, type ParsedMediaUrl } from '../shared/media-detection';
+import { splitName } from '../shared/filename-utils';
+import type { MediaItem, PageInfo, ThreadSummary } from '../shared/types';
 import type { SiteAdapter } from '../shared/site-adapter';
+import type { ScanContext, ScanOptions, ScanResult } from '../content/media-scanner';
 
 export const HOST = 'archiveofsins.com';
 
@@ -44,13 +46,106 @@ export function detectPage(url: URL, title = ''): PageInfo {
   return { kind: 'unsupported', ...base };
 }
 
+const POSTS = 'article.thread, article.post';
+const yieldToBrowser = () => new Promise<void>((r) => setTimeout(r, 0));
+
+/** List OP threads on a board-index page (for the "scan selected threads" flow). */
+export function scanThreadList(root: ParentNode): ThreadSummary[] {
+  const out: ThreadSummary[] = [];
+  for (const el of Array.from(root.querySelectorAll('article.thread[id]'))) {
+    const teaser = (el.querySelector('.post_message, blockquote')?.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 140);
+    const thumbUrl = el.querySelector('.thread_image_box img.post_image')?.getAttribute('src') ?? undefined;
+    out.push({ id: el.id, teaser: teaser || `Thread ${el.id}`, thumbUrl });
+  }
+  return out;
+}
+
+/** Generic fallback when the expected archive markup is gone: any link that still parses as media. */
+function scanFallback(root: ParentNode, ctx: ScanContext, known: Set<string>, order: number): MediaItem[] {
+  const out: MediaItem[] = [];
+  for (const a of Array.from(root.querySelectorAll('a[href]'))) {
+    const href = a.getAttribute('href') ?? '';
+    const parsed = parseMediaUrl(href, ctx.baseUrl);
+    if (!parsed || parsed.isThumb) continue;
+    const id = mediaId('archiveofsins', parsed.board, parsed.tim);
+    if (known.has(id)) continue;
+    known.add(id);
+    const name = (a.textContent ?? '').trim();
+    out.push({
+      id, url: parsed.url, site: 'archiveofsins', board: parsed.board, threadId: ctx.defaultThreadId, postNo: ctx.defaultThreadId,
+      tim: parsed.tim, ext: parsed.ext, type: parsed.type, originalName: name ? splitName(name).base : parsed.tim, order: order++,
+    });
+  }
+  return out;
+}
+
+export async function scan(root: ParentNode, ctx: ScanContext, opts: ScanOptions = {}): Promise<ScanResult> {
+  const known = opts.known ?? new Set<string>();
+  const doc = (root as Node).ownerDocument ?? (root as Document);
+  const hasContainers = !!doc.querySelector(POSTS);
+  if (!hasContainers) {
+    const items = scanFallback(root, ctx, known, opts.startOrder ?? 0);
+    if (items.length) opts.onItems?.(items);
+    return { items, cancelled: false, warning: items.length ? 'The page layout looks different from what this extension expects. Media was found using generic link detection, so details like filenames may be incomplete.' : undefined };
+  }
+  const posts = Array.from(root.querySelectorAll(POSTS));
+  if (root instanceof Element && root.matches(POSTS)) posts.unshift(root);
+  const chunk = opts.chunkSize ?? 250;
+  const yielder = opts.yieldFn ?? yieldToBrowser;
+  const all: MediaItem[] = [];
+  let order = opts.startOrder ?? 0;
+
+  for (let i = 0; i < posts.length; i += chunk) {
+    if (opts.shouldCancel?.()) return { items: all, cancelled: true };
+    const batch: MediaItem[] = [];
+    for (const post of posts.slice(i, i + chunk)) {
+      const link = post.querySelector('.thread_image_box a.thread_image_link[href]');
+      const fileAnchor = post.querySelector('.post_file a.post_file_filename');
+      if (!link) {
+        if (post.classList.contains('has_image') && !fileAnchor) {
+          opts.onIgnored?.(`archiveofsins:removed:${post.id}`, 'removed', 'file removed from archive');
+        }
+        continue;
+      }
+      const href = link.getAttribute('href') ?? '';
+      const parsed = parseMediaUrl(href, ctx.baseUrl);
+      if (!parsed || parsed.isThumb) continue;
+      const id = mediaId('archiveofsins', parsed.board, parsed.tim);
+      opts.elements?.set(id, post);
+      if (known.has(id)) continue;
+      known.add(id);
+
+      const title = fileAnchor?.getAttribute('title');
+      const text = (fileAnchor?.textContent ?? '').trim();
+      const rawName = title || (/\(\.\.\.\)/.test(text) ? '' : text);
+      const metaText = post.querySelector('.post_file_metadata')?.textContent ?? '';
+      const [sizePart, dimPart] = metaText.split(',');
+      const dim = /(\d{1,5})\s*[x×]\s*(\d{1,5})/.exec(dimPart ?? metaText);
+      const name = rawName ? splitName(rawName).base : parsed.tim;
+      const postNo = post.id || ctx.defaultThreadId;
+      const threadId = ctx.defaultThreadId || postNo;
+      const thumbUrl = post.querySelector('.thread_image_box img.post_image')?.getAttribute('src') ?? undefined;
+
+      batch.push({
+        id, url: parsed.url, thumbUrl, site: 'archiveofsins', board: parsed.board, threadId, postNo, tim: parsed.tim,
+        ext: parsed.ext, type: parsed.type, originalName: name || parsed.tim,
+        size: parseFileSize(sizePart ?? ''), width: dim ? Number(dim[1]) : undefined, height: dim ? Number(dim[2]) : undefined,
+        order: order++,
+      });
+    }
+    all.push(...batch);
+    if (batch.length) opts.onItems?.(batch);
+    opts.onProgress?.(Math.min(i + chunk, posts.length), posts.length);
+    if (i + chunk < posts.length) await yielder();
+  }
+  return { items: all, cancelled: false };
+}
+
 export const archiveofsinsAdapter: SiteAdapter = {
   id: 'archiveofsins',
   matches: (u) => u.hostname.toLowerCase() === HOST,
   detectPage,
   allowedMediaHosts,
   parseMediaUrl,
-  scan() {
-    throw new Error('not implemented');
-  },
+  scan,
 };

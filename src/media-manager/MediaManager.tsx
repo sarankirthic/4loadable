@@ -15,7 +15,7 @@ import { PreviewModal } from './PreviewModal';
 import { ThreadsPanel } from './ThreadsPanel';
 
 type Tab = 'media' | 'threads' | 'queue' | 'history';
-const IGNORED_WHY = { type: 'unsupported file type', host: 'host not on the allowlist', path: 'unrecognized URL form', layout: 'unexpected page layout' } as const;
+const IGNORED_WHY = { type: 'unsupported file type', host: 'host not on the allowlist', path: 'unrecognized URL form', layout: 'unexpected page layout', removed: 'file removed from the archive' } as const;
 const tabParam = Number(new URLSearchParams(location.search).get('tab'));
 const TAB_ID = Number.isFinite(tabParam) && tabParam > 0 ? tabParam : null;
 

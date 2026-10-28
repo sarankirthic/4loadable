@@ -39,7 +39,7 @@ export interface ThreadSummary {
 }
 
 /** Media-looking links the scanner deliberately did not turn into items, grouped by cause. */
-export interface IgnoredSummary { reason: 'type' | 'host' | 'path' | 'layout'; detail: string; count: number }
+export interface IgnoredSummary { reason: 'type' | 'host' | 'path' | 'layout' | 'removed'; detail: string; count: number }
 
 export interface Progress { done: number; total: number; label: string }
 
