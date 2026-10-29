@@ -122,3 +122,47 @@ async function upsertHistoryUnsafe(kv: KV, records: HistoryRecord[], cap: number
     await kv.set({ history: h });
   }
 }
+
+// ---- Keeping history in sync with Library-tab moves/renames/trashes (Task 10) ----
+
+const lastSegmentOf = (p: string) => p.split('/').pop() ?? p;
+const MEDIA_LEAF_FOLDERS = new Set(['images', 'gifs', 'videos']);
+
+/** Board/threadId sit immediately before the optional images/gifs/videos leaf and the filename,
+ *  mirroring buildTargetPath's `[site, board, threadId, typeFolder?]` layout. Returns undefined
+ *  when the path is too short to contain them (e.g. 'flat' organize mode). */
+function boardThreadFromPath(path: string[]): { board: string; threadId: string } | undefined {
+  let dirs = path.slice(0, -1);
+  if (dirs.length && MEDIA_LEAF_FOLDERS.has(dirs[dirs.length - 1])) dirs = dirs.slice(0, -1);
+  if (dirs.length < 2) return undefined;
+  const [board, threadId] = dirs.slice(-2);
+  return { board, threadId };
+}
+
+/** Match a library move/rename/trash `from` path to the history record it came from: same filename
+ *  (last segment of `savedPath`), and same board/thread when derivable from the path. Returns
+ *  undefined rather than guessing when more than one record still matches. */
+export function matchHistoryByPath(history: Record<string, HistoryRecord>, fromPath: string[]): HistoryRecord | undefined {
+  if (!fromPath.length) return undefined;
+  const lastSeg = fromPath[fromPath.length - 1];
+  // Match against the record's CURRENT location: once a prior move set libraryPath, a later
+  // move's `from` reflects where the file ended up last time, not the original savedPath.
+  let candidates = Object.values(history).filter((r) => lastSegmentOf(r.libraryPath ?? r.savedPath) === lastSeg);
+  const bt = boardThreadFromPath(fromPath);
+  if (bt) candidates = candidates.filter((r) => r.board === bt.board && r.threadId === bt.threadId);
+  return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+/** Apply LIBRARY_PATHS_CHANGED: for each completed move/rename/trash op, find the matching history
+ *  record and update its libraryPath. An empty `to` (the trashed copy was permanently deleted) clears
+ *  libraryPath so planDownloads' duplicate-skip stops treating the file as present. */
+export async function applyLibraryPathChanges(kv: KV, changes: Array<{ from: string[]; to: string[] }>): Promise<void> {
+  const history = await loadHistory(kv);
+  const updates: HistoryRecord[] = [];
+  for (const { from, to } of changes) {
+    const match = matchHistoryByPath(history, from);
+    if (!match) continue;
+    updates.push({ ...match, libraryPath: to.length ? to.join('/') : undefined });
+  }
+  if (updates.length) await upsertHistory(kv, updates);
+}

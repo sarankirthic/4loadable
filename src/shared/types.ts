@@ -131,6 +131,10 @@ export interface HistoryRecord {
   threadId: string;
   postNo: string;
   savedPath: string;
+  /** Relative path (library-root-relative, '/'-joined segments) after the Library tab moved/renamed/trashed this
+   *  file. Set by LIBRARY_PATHS_CHANGED; present means "the file still exists, just not at savedPath" so
+   *  duplicate-skip should still treat it as downloaded. Cleared when the trashed copy is permanently deleted. */
+  libraryPath?: string;
   downloadId?: number;
   status: 'complete' | 'failed' | 'skipped';
   error?: string;

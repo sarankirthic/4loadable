@@ -1,4 +1,4 @@
-import { chromeKV, loadHistory, loadSettings, upsertHistory, normalizeSettings } from '../shared/storage';
+import { applyLibraryPathChanges, chromeKV, loadHistory, loadSettings, upsertHistory, normalizeSettings } from '../shared/storage';
 import { selectionKey, type DownloadResponse, type Msg } from '../shared/messaging';
 import { parseMediaUrlForSite } from '../shared/media-url';
 import type { DownloadOptions, MediaItem } from '../shared/types';
@@ -227,6 +227,7 @@ chromeApi.runtime.onMessage.addListener((msg: Msg, sender: any, sendResponse: (r
         await chromeApi.tabs.create({ url: chromeApi.runtime.getURL(`manager.html${tabId != null ? `?tab=${tabId}` : ''}`) });
         return { ok: true };
       }
+      case 'LIBRARY_PATHS_CHANGED': await applyLibraryPathChanges(local, msg.changes); return { ok: true };
       case 'REGISTER_SITE_SCRIPTS': return { ok: await registerSiteScripts(msg.site, chromePermissionsPort()) };
       case 'SITE_PERMISSION_STATUS': return { ok: await hasSitePermission(msg.site, chromePermissionsPort()) };
       default: return { ok: false };
