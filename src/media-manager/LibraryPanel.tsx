@@ -167,10 +167,12 @@ export function LibraryPanel({ rootFolder, notify, queueActive, deps: injected }
   useEffect(() => {
     if (!source) { setEntries([]); return; }
     const ac = new AbortController();
-    let buf: LibraryEntry[] = [], raf = 0, found = 0;
+    let buf: LibraryEntry[] = [], all: LibraryEntry[] = [], raf = 0, found = 0;
+    // Set this scan's own list, not prev.concat: React can apply a flush before this effect's
+    // setEntries([]) reset is rendered, which briefly showed every entry twice after a source change.
     const flush = () => {
       cancelAnimationFrame(raf); raf = 0;
-      if (buf.length) { const b = buf; buf = []; setEntries((prev) => prev.concat(b)); }
+      if (buf.length) { all = all.concat(buf); buf = []; setEntries(all); }
       setScan((s) => ({ ...s, found }));
     };
     setEntries([]);
