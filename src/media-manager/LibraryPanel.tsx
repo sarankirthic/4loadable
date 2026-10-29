@@ -276,6 +276,13 @@ export function LibraryPanel({ rootFolder, notify, queueActive, deps: injected }
     const before = (await deps.journal.load()).at(-1);
     if (!before || !fs) return;
     const pending = before.ops.filter((o) => o.done && o.kind !== 'mkdir' && o.from && o.to);
+    if (!pending.length) {
+      // Nothing to preview (e.g. New folder, or a run where nothing completed): drop the entry so earlier actions stay undoable.
+      await undoLast(fs, deps.journal).catch(() => {});
+      notify('Nothing to reverse in the last action (new folders are kept).');
+      refresh();
+      return;
+    }
     setPlanReq({
       title: 'Undo last',
       cancellable: false,

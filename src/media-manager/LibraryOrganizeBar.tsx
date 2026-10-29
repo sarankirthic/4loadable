@@ -155,10 +155,15 @@ export function LibraryOrganizeBar({ path, selection, folderFiles, fs, canUndo, 
           title: `Restore ${restorable.length} file${restorable.length === 1 ? '' : 's'}`, collisionChoice: true,
           plan: async (c) => {
             // Trash paths are [TRASH_DIR, date, ...originalPath]; restoring is a move back to the original folder.
-            // ponytail: one planMove per file, so two trashed files with the same original path only dedupe against disk, not each other.
-            const out: PlanResult = { ops: [], skipped: [], warnings: [] };
+            // One planMove per destination folder, so files restoring to the same place dedupe against each other too.
+            const groups = new Map<string, LibraryEntry[]>();
             for (const f of restorable) {
-              const r = await planMove([f], f.path.slice(2, -1), c, existing);
+              const k = f.path.slice(2, -1).join('/');
+              groups.set(k, [...(groups.get(k) ?? []), f]);
+            }
+            const out: PlanResult = { ops: [], skipped: [], warnings: [] };
+            for (const group of groups.values()) {
+              const r = await planMove(group, group[0].path.slice(2, -1), c, existing);
               out.ops.push(...r.ops.map((op): Op => ({ ...op, kind: 'restore' })));
               out.skipped.push(...r.skipped);
             }
@@ -176,6 +181,7 @@ export function LibraryOrganizeBar({ path, selection, folderFiles, fs, canUndo, 
         title: `Create folder "${name}"`,
         plan: async () => {
           const to = [...path, name];
+          if (name === TRASH_DIR) return { ops: [], skipped: [{ path: to, reason: 'reserved name (used for the trash)' }], warnings: [] };
           return (await existing(to))
             ? { ops: [], skipped: [{ path: to, reason: 'already exists' }], warnings: [] }
             : { ops: [{ kind: 'mkdir', to }], skipped: [], warnings: [] };
