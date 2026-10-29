@@ -7,10 +7,6 @@ archive-fixtures.zip
 .idea/
 .claude/
 
-tests
-images/
-docs/
-
 archive-tests
 archive-fixtures.zip
 archiveofsins-fix.patch
