@@ -11,6 +11,9 @@ export interface FakeFileOpts {
   chunks?: Uint8Array[];
   /** If set, getFile() rejects with this error instead of returning a blob. */
   getFileError?: Error;
+  /** If set, overrides the blob's reported `.size` without changing the actual bytes streamed —
+   *  lets tests simulate a size-mismatch (e.g. for move()'s copy-verify-delete fallback). */
+  sizeOverride?: number;
   /** Whether this handle exposes `.move()` — feature-detection toggle. Default false. */
   supportsMove?: boolean;
   lastModified?: number;
@@ -32,6 +35,7 @@ export class FakeFileHandle implements FileHandleLike {
   name: string;
   chunks: Uint8Array[];
   getFileError?: Error;
+  sizeOverride?: number;
   lastModified: number;
   move?: (dest: DirHandleLike, name?: string) => Promise<void>;
   /** Internal: the directory currently containing this handle, kept in sync by FakeDirHandle. */
@@ -41,6 +45,7 @@ export class FakeFileHandle implements FileHandleLike {
     this.name = name;
     this.chunks = opts.chunks ?? [opts.content ?? new Uint8Array()];
     this.getFileError = opts.getFileError;
+    this.sizeOverride = opts.sizeOverride;
     this.lastModified = opts.lastModified ?? 0;
     if (opts.supportsMove) {
       this.move = async (dest: DirHandleLike, newName?: string) => {
@@ -56,7 +61,7 @@ export class FakeFileHandle implements FileHandleLike {
   async getFile() {
     if (this.getFileError) throw this.getFileError;
     const chunks = this.chunks;
-    const size = chunks.reduce((n, c) => n + c.length, 0);
+    const size = this.sizeOverride ?? chunks.reduce((n, c) => n + c.length, 0);
     const name = this.name;
     const lastModified = this.lastModified;
     const blob = {

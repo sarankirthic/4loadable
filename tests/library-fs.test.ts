@@ -100,21 +100,35 @@ test('exists/size/list reflect the underlying tree', async () => {
   assert.deepEqual(listing, [{ name: 'f.png', kind: 'file' }]);
 });
 
-test('nativeMove is present only when the file handle supports move(), and performs the move', async () => {
+test('move() uses native handle.move() when the handle supports it', async () => {
   const root = makeFakeDir();
   root.setChild('movable.png', makeFakeFile('movable.png', { content: new Uint8Array([1]), supportsMove: true }));
   const fs = createFsLike(root);
-  assert.equal(typeof fs.nativeMove, 'function');
 
-  await fs.nativeMove!(['movable.png'], ['moved.png']);
+  await fs.move(['movable.png'], ['moved.png']);
   assert.equal(await fs.exists(['movable.png']), null);
   assert.equal(await fs.exists(['moved.png']), 'file');
 });
 
-test('nativeMove throws when the file handle does not support move()', async () => {
+test('move() falls back to copy-verify-delete when the handle does not support move()', async () => {
   const root = makeFakeDir();
-  root.setChild('static.png', makeFakeFile('static.png', { content: new Uint8Array([1]) }));
+  root.setChild('static.png', makeFakeFile('static.png', { content: new Uint8Array([1, 2, 3]) }));
   const fs = createFsLike(root);
 
-  await assert.rejects(() => fs.nativeMove!(['static.png'], ['elsewhere.png']));
+  await fs.move(['static.png'], ['moved', 'static.png']);
+  assert.equal(await fs.exists(['static.png']), null, 'source removed after verified copy');
+  assert.equal(await fs.exists(['moved', 'static.png']), 'file');
+  assert.equal(await fs.size(['moved', 'static.png']), 3);
+});
+
+test('move() fallback on size mismatch leaves the source intact, removes the partial destination, and throws', async () => {
+  const root = makeFakeDir();
+  // Declares a size (10) that does not match the actual bytes (3) copyFile will write —
+  // simulates a corrupted/incomplete copy that the verification step must catch.
+  root.setChild('bad.png', makeFakeFile('bad.png', { content: new Uint8Array([1, 2, 3]), sizeOverride: 10 }));
+  const fs = createFsLike(root);
+
+  await assert.rejects(() => fs.move(['bad.png'], ['moved.png']));
+  assert.equal(await fs.exists(['bad.png']), 'file', 'source left intact');
+  assert.equal(await fs.exists(['moved.png']), null, 'partial/incorrect destination removed');
 });

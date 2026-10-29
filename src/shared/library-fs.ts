@@ -5,8 +5,9 @@ export interface FsLike {
   exists(path: string[]): Promise<'file' | 'folder' | null>;
   size(path: string[]): Promise<number>;
   mkdirp(path: string[]): Promise<void>;
-  /** Present only if the underlying file handle supports move() (feature-detected per call). */
-  nativeMove?(from: string[], to: string[]): Promise<void>;
+  /** Feature-detects handle.move() internally; falls back to copy-verify-delete. Throws on
+   *  verification failure or error, leaving the source intact and removing any partial dest. */
+  move(from: string[], to: string[]): Promise<void>;
   /** Streams; removes the partial destination file on error/abort. */
   copyFile(from: string[], to: string[], signal: AbortSignal): Promise<void>;
   /** File only (non-recursive) — refuses to remove folders. */
@@ -113,12 +114,14 @@ export function createFsLike(root: DirHandleLike): FsLike {
       if (toDirPath.length > 0) await fs.mkdirp(toDirPath);
       const toDir = await resolveDir(toDirPath);
       const toName = to[to.length - 1];
-      const toHandle = await toDir.getFileHandle(toName, { create: true });
-      if (!toHandle.createWritable) throw new Error('copyFile: destination handle is not writable');
-      const writable = await toHandle.createWritable();
 
+      let writable: { write(b: Blob): Promise<void>; close(): Promise<void>; abort?(): Promise<void> } | undefined;
       try {
         if (signal.aborted) throw new DOMException('aborted', 'AbortError');
+        const toHandle = await toDir.getFileHandle(toName, { create: true });
+        if (!toHandle.createWritable) throw new Error('copyFile: destination handle is not writable');
+        writable = await toHandle.createWritable();
+
         const file = await fromHandle.getFile();
         const reader = file.stream().getReader();
         while (true) {
@@ -129,29 +132,43 @@ export function createFsLike(root: DirHandleLike): FsLike {
         }
         await writable.close();
       } catch (err) {
-        await writable.abort?.().catch(() => {});
+        await writable?.abort?.().catch(() => {});
         await toDir.removeEntry(toName).catch(() => {});
         throw err;
       }
     },
-  };
 
-  // nativeMove is feature-detected per call against the actual source file handle, since
-  // DirHandleLike/FileHandleLike give no static, pre-instance way to know whether move() will
-  // be available. It's always exposed; it throws if the resolved handle doesn't support it, so
-  // callers can fall back to copyFile+remove themselves.
-  fs.nativeMove = async (from: string[], to: string[]) => {
-    validatePath(from);
-    validatePath(to);
-    const fromDir = await resolveDir(from.slice(0, -1));
-    const fromHandle: FileHandleLike = await fromDir.getFileHandle(from[from.length - 1]);
-    if (typeof fromHandle.move !== 'function') {
-      throw new Error('nativeMove: underlying file handle does not support move()');
-    }
-    const toDirPath = to.slice(0, -1);
-    if (toDirPath.length > 0) await fs.mkdirp(toDirPath);
-    const toDir = await resolveDir(toDirPath);
-    await fromHandle.move(toDir, to[to.length - 1]);
+    // Feature-detects handle.move() against the resolved source handle; falls back to a
+    // copy-verify-delete sequence otherwise. On any mismatch or error, the source is left
+    // intact and any partial/incorrect destination is removed.
+    async move(from, to) {
+      validatePath(from);
+      validatePath(to);
+      const fromDir = await resolveDir(from.slice(0, -1));
+      const fromName = from[from.length - 1];
+      const fromHandle: FileHandleLike = await fromDir.getFileHandle(fromName);
+
+      if (typeof fromHandle.move === 'function') {
+        const toDirPath = to.slice(0, -1);
+        if (toDirPath.length > 0) await fs.mkdirp(toDirPath);
+        const toDir = await resolveDir(toDirPath);
+        await fromHandle.move(toDir, to[to.length - 1]);
+        return;
+      }
+
+      // Fallback: copy, verify the copy matches the source, then delete the source.
+      const sourceFile = await fromHandle.getFile();
+      const expectedSize = sourceFile.size;
+      await fs.copyFile(from, to, new AbortController().signal);
+
+      const kind = await fs.exists(to);
+      const actualSize = kind === 'file' ? await fs.size(to) : -1;
+      if (kind !== 'file' || actualSize !== expectedSize) {
+        await fs.remove(to).catch(() => {});
+        throw new Error(`move: verification failed for ${to.join('/')} (expected size ${expectedSize}, got ${actualSize})`);
+      }
+      await fs.remove(from);
+    },
   };
 
   return fs;
