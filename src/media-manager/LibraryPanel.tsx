@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { executePlan, undoLast, type JournalEntry, type JournalStore } from '../shared/library-executor';
 import { classifyPermission, indexedDBHandleStore, isLikelyDownloadsRoot, pickerErrorHint, type FolderPermissionState, type HandleStore } from '../shared/library-folder-store';
-import { createFsLike } from '../shared/library-fs';
+import { createFsLike, type FsLike } from '../shared/library-fs';
 import { TRASH_DIR } from '../shared/library-ops';
 import { createBrowserRecordsSource } from '../shared/library-source-browser';
 import { createFolderSource, type DirHandleLike } from '../shared/library-source-folder';
@@ -74,7 +74,19 @@ export function chromeLibraryDeps(rootFolder: string): LibraryDeps {
   };
 }
 
-const PERM_MESSAGE: Partial<Record<FolderPermissionState, string>> = {
+/** Decide how Undo last proceeds. When the last journal entry has nothing to reverse (e.g. New folder,
+ *  or a run where nothing completed) it is dropped right away via undoLast and 'cleared' is returned,
+ *  so it can never sit in front of earlier, undoable entries behind an empty preview dialog. */
+export async function prepareUndo(fs: FsLike, journal: JournalStore): Promise<'cleared' | null | { before: JournalEntry; pending: JournalEntry['ops'] }> {
+  const before = (await journal.load()).at(-1);
+  if (!before) return null;
+  const pending = before.ops.filter((o) => o.done && o.kind !== 'mkdir' && o.from && o.to);
+  if (pending.length) return { before, pending };
+  await undoLast(fs, journal).catch(() => {});
+  return 'cleared';
+}
+
+const PERM_MESSAGE:Partial<Record<FolderPermissionState, string>> = {
   unsupported: 'This browser cannot open a folder directly (no File System Access API), so only Chrome’s download records are shown.',
   disconnected: 'No library folder is connected. Choose your download folder to see thumbnails, preview files and organize them.',
   'needs-reconnect': 'Chrome needs your permission again to read the library folder.',
@@ -273,16 +285,15 @@ export function LibraryPanel({ rootFolder, notify, queueActive, deps: injected }
   };
 
   const undo = async () => {
-    const before = (await deps.journal.load()).at(-1);
-    if (!before || !fs) return;
-    const pending = before.ops.filter((o) => o.done && o.kind !== 'mkdir' && o.from && o.to);
-    if (!pending.length) {
-      // Nothing to preview (e.g. New folder, or a run where nothing completed): drop the entry so earlier actions stay undoable.
-      await undoLast(fs, deps.journal).catch(() => {});
+    if (!fs) return;
+    const prep = await prepareUndo(fs, deps.journal);
+    if (prep === 'cleared') {
       notify('Nothing to reverse in the last action (new folders are kept).');
       refresh();
       return;
     }
+    if (!prep) return;
+    const { before, pending } = prep;
     setPlanReq({
       title: 'Undo last',
       cancellable: false,
