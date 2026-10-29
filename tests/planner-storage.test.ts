@@ -80,6 +80,23 @@ test('applyLibraryPathChanges sets libraryPath on move/rename, and clears it whe
   assert.equal((await loadHistory(kv)).a.libraryPath, undefined);
 });
 
+test('applyLibraryPathChanges clears libraryPath after sort-by-type then trash then empty-trash, even though the trash path\'s .4loadable-trash/<date> segments look like board/thread to the fallback heuristic', async () => {
+  const kv = new MemoryKV();
+  await upsertHistory(kv, [hist('a', { savedPath: '4lodable/fourchan/g/9/images/image.png', board: 'g', threadId: '9' })]);
+
+  // Sort by type: canonical path -> flat images/ folder (no board/thread segments left).
+  await applyLibraryPathChanges(kv, [{ from: ['fourchan', 'g', '9', 'images', 'image.png'], to: ['images', 'image.png'] }]);
+  assert.equal((await loadHistory(kv)).a.libraryPath, 'images/image.png');
+
+  // Trash it.
+  await applyLibraryPathChanges(kv, [{ from: ['images', 'image.png'], to: ['.4loadable-trash', '2026-10-29', 'images', 'image.png'] }]);
+  assert.equal((await loadHistory(kv)).a.libraryPath, '.4loadable-trash/2026-10-29/images/image.png');
+
+  // Empty the trash (to: [] sentinel) — must clear libraryPath, not leave it stuck.
+  await applyLibraryPathChanges(kv, [{ from: ['.4loadable-trash', '2026-10-29', 'images', 'image.png'], to: [] }]);
+  assert.equal((await loadHistory(kv)).a.libraryPath, undefined);
+});
+
 test('applyLibraryPathChanges concurrent calls do not lose records', async () => {
   const kv = new MemoryKV();
   await upsertHistory(kv, Array.from({ length: 10 }, (_, i) => hist('r' + i, { savedPath: `4lodable/fourchan/g/9/images/f${i}.png`, board: 'g', threadId: '9' })));

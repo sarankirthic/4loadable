@@ -144,9 +144,19 @@ function boardThreadFromPath(path: string[]): { board: string; threadId: string 
  *  undefined rather than guessing when more than one record still matches. */
 export function matchHistoryByPath(history: Record<string, HistoryRecord>, fromPath: string[]): HistoryRecord | undefined {
   if (!fromPath.length) return undefined;
+
+  // Exact match first: does the op's `from` equal any record's current effective path exactly?
+  // This covers every non-canonical layout (trash, sorted folders, user-created folders) where
+  // the board/thread heuristic below can't find — or actively misreads — board/thread segments
+  // (e.g. a trashed path's `.4loadable-trash/<date>` segments look like board/thread to it).
+  const fromStr = fromPath.join('/');
+  const exact = Object.values(history).filter((r) => (r.libraryPath ?? r.savedPath) === fromStr);
+  if (exact.length === 1) return exact[0];
+
   const lastSeg = fromPath[fromPath.length - 1];
-  // Match against the record's CURRENT location: once a prior move set libraryPath, a later
-  // move's `from` reflects where the file ended up last time, not the original savedPath.
+  // Fallback heuristic, still needed for the very first move off a file's original savedPath:
+  // savedPath may carry a rootFolder/subfolder prefix that the op's root-relative `from` lacks,
+  // so it won't match exactly even though it's the right record.
   let candidates = Object.values(history).filter((r) => lastSegmentOf(r.libraryPath ?? r.savedPath) === lastSeg);
   const bt = boardThreadFromPath(fromPath);
   if (bt) candidates = candidates.filter((r) => r.board === bt.board && r.threadId === bt.threadId);

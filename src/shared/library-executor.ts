@@ -120,6 +120,14 @@ export async function undoLast(fs: FsLike, journal: JournalStore): Promise<{ und
         continue;
       }
       if (!op.from || !op.to) throw new Error(`${op.kind} op missing from/to`);
+      if ((await fs.exists(op.to)) === null) {
+        // The op's target is truly gone (e.g. permanently deleted by "empty trash" after this
+        // move was journaled) — there's nothing left to reverse. Retrying would fail forever and
+        // block every earlier, still-reversible entry behind it, so drop it instead: clear `done`
+        // (it's no longer pending) without counting it as a normal undo or a retryable failure.
+        op.done = false;
+        continue;
+      }
       const restoreTo = await freePath(fs, op.from);
       await fs.move(op.to, restoreTo);
       op.done = false;

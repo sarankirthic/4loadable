@@ -144,6 +144,7 @@ export function createFsLike(root: DirHandleLike): FsLike {
     async move(from, to) {
       validatePath(from);
       validatePath(to);
+      if (await fs.exists(to)) throw new Error(`Destination already exists: ${to.join('/')}`);
       const fromDir = await resolveDir(from.slice(0, -1));
       const fromName = from[from.length - 1];
       const fromHandle: FileHandleLike = await fromDir.getFileHandle(fromName);

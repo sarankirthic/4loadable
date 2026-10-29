@@ -121,6 +121,20 @@ test('move() falls back to copy-verify-delete when the handle does not support m
   assert.equal(await fs.size(['moved', 'static.png']), 3);
 });
 
+test('move() refuses to silently overwrite an existing destination, at execution time', async () => {
+  const root = makeFakeDir();
+  root.setChild('src.png', makeFakeFile('src.png', { content: new Uint8Array([1, 2, 3]), supportsMove: true }));
+  root.setChild('dest.png', makeFakeFile('dest.png', { content: new Uint8Array([9, 9]) }));
+  const fs = createFsLike(root);
+
+  await assert.rejects(() => fs.move(['src.png'], ['dest.png']), /Destination already exists/);
+  // Destination's original content is untouched (not partially overwritten).
+  assert.equal(await fs.size(['dest.png']), 2);
+  // Source is untouched too.
+  assert.equal(await fs.exists(['src.png']), 'file');
+  assert.equal(await fs.size(['src.png']), 3);
+});
+
 test('move() fallback on size mismatch leaves the source intact, removes the partial destination, and throws', async () => {
   const root = makeFakeDir();
   // Declares a size (10) that does not match the actual bytes (3) copyFile will write —

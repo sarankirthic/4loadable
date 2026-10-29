@@ -171,9 +171,11 @@ test('undoLast partial failure: keeps the journal entry and reflects mixed rever
   ];
   await executePlan(ops, fs, journal, { signal: new AbortController().signal, onProgress: noopProgress });
 
-  // Sabotage op[1]'s destination so reversing it fails (source for the undo-move is gone).
+  // Sabotage op[1]'s destination with a TRANSIENT error (the file is still there — unlike I2's
+  // "permanently deleted" case below, this must stay retryable, not get silently dropped).
   const outDir = root.getChild('out') as ReturnType<typeof makeFakeDir>;
-  await outDir.removeEntry('b.png');
+  const movedB = outDir.getChild('b.png') as ReturnType<typeof makeFakeFile>;
+  movedB.move = async () => { throw new Error('simulated transient I/O error'); };
 
   const undoResult = await undoLast(fs, journal);
   assert.equal(undoResult.undone, 1); // op[0] (a.png) reversed, in reverse order it's attempted second
@@ -190,6 +192,39 @@ test('undoLast partial failure: keeps the journal entry and reflects mixed rever
   assert.equal(entry.ops[0].done, false);
   // op[1] (b.png) failed to reverse: still flagged as needing undo for a retry/diagnostic.
   assert.equal(entry.ops[1].done, true);
+});
+
+test('undoLast drops an op whose target was permanently deleted outside the extension, instead of getting stuck forever', async () => {
+  const root = makeFakeDir();
+  root.setChild('a.png', makeFakeFile('a.png', { content: new Uint8Array([1]), supportsMove: true }));
+  root.setChild('b.png', makeFakeFile('b.png', { content: new Uint8Array([2]), supportsMove: true }));
+  const fs = createFsLike(root);
+  const journal = fakeJournal();
+
+  // Two separate journal entries: an earlier, still-reversible move, and a later one whose
+  // destination later gets permanently deleted outside the extension (e.g. "empty trash").
+  const earlier: Op[] = [{ kind: 'move', from: ['a.png'], to: ['out', 'a.png'] }];
+  await executePlan(earlier, fs, journal, { signal: new AbortController().signal, onProgress: noopProgress });
+  const later: Op[] = [{ kind: 'move', from: ['b.png'], to: ['out', 'b.png'] }];
+  await executePlan(later, fs, journal, { signal: new AbortController().signal, onProgress: noopProgress });
+
+  const outDir = root.getChild('out') as ReturnType<typeof makeFakeDir>;
+  await outDir.removeEntry('b.png'); // gone for good, not a transient error
+
+  // Undoing the later (now-unrecoverable) entry must not fail/retry forever.
+  const first = await undoLast(fs, journal);
+  assert.equal(first.failed, 0);
+  assert.equal(await fs.exists(['b.png']), null);
+
+  // Because the entry is fully cleared, the next undoLast reaches the earlier, still-valid
+  // entry behind it and succeeds — it isn't permanently blocked.
+  const second = await undoLast(fs, journal);
+  assert.equal(second.undone, 1);
+  assert.equal(second.failed, 0);
+  assert.equal(await fs.exists(['a.png']), 'file');
+
+  const saved = await journal.load();
+  assert.equal(saved.length, 0);
 });
 
 test('journal is capped at 20 entries', async () => {
