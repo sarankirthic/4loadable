@@ -9,12 +9,13 @@ import { useHistory, useQueue, useScan, useSelection, useSettings, useStorage, u
 import { DownloadDialog } from './DownloadDialog';
 import { DownloadQueue } from './DownloadQueue';
 import { HistoryPanel } from './HistoryPanel';
+import { LibraryPanel } from './LibraryPanel';
 import { MediaFilters } from './MediaFilters';
 import { MediaGrid } from './MediaGrid';
 import { PreviewModal } from './PreviewModal';
 import { ThreadsPanel } from './ThreadsPanel';
 
-type Tab = 'media' | 'threads' | 'queue' | 'history';
+type Tab = 'media' | 'threads' | 'queue' | 'history' | 'library';
 const IGNORED_WHY = { type: 'unsupported file type', host: 'host not on the allowlist', path: 'unrecognized URL form', layout: 'unexpected page layout', removed: 'file removed from the archive' } as const;
 const tabParam = Number(new URLSearchParams(location.search).get('tab'));
 const TAB_ID = Number.isFinite(tabParam) && tabParam > 0 ? tabParam : null;
@@ -93,7 +94,7 @@ export function MediaManager() {
         <button onClick={() => (globalThis as any).chrome.runtime.openOptionsPage()}>Settings</button>
       </header>
       <nav className="tabs" role="tablist">
-        {([['media', `Media (${items.length})`], ...(multi ? [['threads', `Threads (${scan?.threads.length ?? 0})`]] : []), ['queue', `Queue (${queue.filter((q) => ['queued', 'starting', 'downloading', 'paused'].includes(q.status)).length})`], ['history', 'History']] as [Tab, string][])
+        {([['media', `Media (${items.length})`], ...(multi ? [['threads', `Threads (${scan?.threads.length ?? 0})`]] : []), ['queue', `Queue (${queue.filter((q) => ['queued', 'starting', 'downloading', 'paused'].includes(q.status)).length})`], ['history', 'History'], ['library', 'Library']] as [Tab, string][])
           .map(([k, label]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{label}</button>)}
       </nav>
 
@@ -147,6 +148,8 @@ export function MediaManager() {
       {tab === 'threads' && scan && TAB_ID != null && <ThreadsPanel scan={scan} tabId={TAB_ID} notify={notify} />}
       {tab === 'queue' && <DownloadQueue queue={queue} paused={paused} />}
       {tab === 'history' && <HistoryPanel history={history} />}
+      {tab === 'library' && <LibraryPanel rootFolder={settings.rootFolder} notify={notify}
+        queueActive={!paused && queue.some((q) => ['queued', 'starting', 'downloading'].includes(q.status))} />}
 
       {preview != null && <PreviewModal items={shown} index={preview} selected={selected} onClose={() => setPreview(null)} onNav={setPreview}
         onToggle={(id) => { const n = new Set(selected); n.has(id) ? n.delete(id) : n.add(id); setSelected(n); }} />}
