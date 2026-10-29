@@ -33,7 +33,7 @@ export function parseMediaUrl(raw: string, base = `https://${HOST}/`): ParsedMed
   return { url: `https://${host}${u.pathname}`, host, board: board.toLowerCase(), tim, ext, type, isThumb };
 }
 
-const THREAD = /^\/([a-z0-9]{1,10})\/thread\/(\d+)\/?$/i;
+const THREAD = /^\/([a-z0-9]{1,10})\/thread\/(\d+)(?:\/[^/]*)?\/?$/i;
 const BOARD = /^\/([a-z0-9]{1,10})\/(?:\d+\/)?$/i;
 
 export function detectPage(url: URL, title = ''): PageInfo {

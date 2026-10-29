@@ -67,6 +67,11 @@ test('detectPage: thread', () => {
   assert.deepEqual(p, { kind: 'thread', board: 'h', threadId: '8968486', url: 'https://archiveofsins.com/h/thread/8968486/', title: 't', site: 'archiveofsins' });
 });
 
+test('detectPage: thread with slug', () => {
+  const p = archiveofsinsAdapter.detectPage(new URL('https://archiveofsins.com/h/thread/8968486/some-op-slug/'), 't');
+  assert.deepEqual(p, { kind: 'thread', board: 'h', threadId: '8968486', url: 'https://archiveofsins.com/h/thread/8968486/some-op-slug/', title: 't', site: 'archiveofsins' });
+});
+
 test('detectPage: board index', () => {
   const p = archiveofsinsAdapter.detectPage(new URL('https://archiveofsins.com/h/'), 't');
   assert.deepEqual(p, { kind: 'board', board: 'h', url: 'https://archiveofsins.com/h/', title: 't', site: 'archiveofsins' });
