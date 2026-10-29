@@ -106,25 +106,39 @@ export async function undoLast(fs: FsLike, journal: JournalStore): Promise<{ und
   let undone = 0;
   let failed = 0;
 
-  // Reverse completed ops in reverse order.
+  // Reverse completed ops in reverse order. `op.done` doubles as "still needs undoing": once an
+  // op is successfully reversed here, we flip it back to false so a retried/second undoLast call
+  // (after a partial failure) doesn't re-attempt it.
   for (let i = entry.ops.length - 1; i >= 0; i -= 1) {
     const op = entry.ops[i];
     if (!op.done) continue;
     try {
       if (op.kind === 'mkdir') {
         // Nothing meaningful to undo for a bare mkdir (we never remove folders).
+        op.done = false;
         undone += 1;
         continue;
       }
       if (!op.from || !op.to) throw new Error(`${op.kind} op missing from/to`);
       const restoreTo = await freePath(fs, op.from);
       await fs.move(op.to, restoreTo);
+      op.done = false;
       undone += 1;
     } catch {
+      // Leave op.done === true: it still needs undoing, so it's retried on the next call and
+      // isn't silently lost.
       failed += 1;
     }
   }
 
-  await journal.save(all.slice(0, -1));
+  // Only drop the journal entry once every op in it has been fully reversed. On a partial
+  // failure, keep the entry (with its updated done flags) so nothing is lost and a future
+  // undoLast or diagnostic can tell exactly which ops still need attention.
+  if (failed === 0) {
+    await journal.save(all.slice(0, -1));
+  } else {
+    all[all.length - 1] = entry;
+    await journal.save(all);
+  }
   return { undone, failed };
 }

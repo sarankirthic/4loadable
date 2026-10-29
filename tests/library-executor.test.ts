@@ -158,6 +158,40 @@ test('undo into an occupied original path uses a suffixed name and reports it', 
   assert.equal(await fs.exists(['a-2.png']), 'file');
 });
 
+test('undoLast partial failure: keeps the journal entry and reflects mixed reversed/not-reversed state', async () => {
+  const root = makeFakeDir();
+  root.setChild('a.png', makeFakeFile('a.png', { content: new Uint8Array([1]), supportsMove: true }));
+  root.setChild('b.png', makeFakeFile('b.png', { content: new Uint8Array([2]), supportsMove: true }));
+  const fs = createFsLike(root);
+  const journal = fakeJournal();
+
+  const ops: Op[] = [
+    { kind: 'move', from: ['a.png'], to: ['out', 'a.png'] },
+    { kind: 'move', from: ['b.png'], to: ['out', 'b.png'] },
+  ];
+  await executePlan(ops, fs, journal, { signal: new AbortController().signal, onProgress: noopProgress });
+
+  // Sabotage op[1]'s destination so reversing it fails (source for the undo-move is gone).
+  const outDir = root.getChild('out') as ReturnType<typeof makeFakeDir>;
+  await outDir.removeEntry('b.png');
+
+  const undoResult = await undoLast(fs, journal);
+  assert.equal(undoResult.undone, 1); // op[0] (a.png) reversed, in reverse order it's attempted second
+  assert.equal(undoResult.failed, 1); // op[1] (b.png) could not be reversed
+
+  // a.png is back at its original location.
+  assert.equal(await fs.exists(['a.png']), 'file');
+
+  // The journal entry is NOT discarded — nothing is silently lost.
+  const saved = await journal.load();
+  assert.equal(saved.length, 1);
+  const entry = saved[0];
+  // op[0] (a.png) was successfully reversed: no longer needs undoing.
+  assert.equal(entry.ops[0].done, false);
+  // op[1] (b.png) failed to reverse: still flagged as needing undo for a retry/diagnostic.
+  assert.equal(entry.ops[1].done, true);
+});
+
 test('journal is capped at 20 entries', async () => {
   const root = makeFakeDir();
   const journal = fakeJournal(
