@@ -78,7 +78,7 @@ export function MediaManager() {
   const rescan = async () => {
     if (TAB_ID == null) return;
     const r = await sendToTab<{ ok: boolean }>(TAB_ID, { type: 'SCAN_PAGE' });
-    if (!r) notify('Could not reach the page. Reload the 4chan tab, then try again.');
+    if (!r) notify('Could not reach the page. Reload the tab, then try again.');
   };
 
   return (
@@ -115,7 +115,7 @@ export function MediaManager() {
       {tab === 'media' && (
         <div className="main">
           {TAB_ID == null || !scan ? (
-            <div className="empty">Open a 4chan board or thread, click the extension icon, then choose "Select media".</div>
+            <div className="empty">Open a supported board or thread, click the extension icon, then choose "Select media".</div>
           ) : (
             <>
               <MediaFilters filter={filter} setFilter={setFilter} counts={counts}

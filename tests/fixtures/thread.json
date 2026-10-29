@@ -1,7 +1,0 @@
-{"posts":[
- {"no":1000,"resto":0,"filename":"op image","ext":".png","w":800,"h":600,"tim":1700000000101,"md5":"AAAAAAAAAAAAAAAAAAAAAA==","fsize":123456},
- {"no":1001,"resto":1000,"filename":"reply","ext":".webm","w":640,"h":360,"tim":1700000000102,"md5":"BBBBBBBBBBBBBBBBBBBBBB==","fsize":2222222},
- {"no":1002,"resto":1000},
- {"no":1003,"resto":1000,"filename":"gone","ext":".jpg","tim":1700000000103,"filedeleted":1},
- {"no":1004,"resto":1000,"filename":"anim","ext":".gif","w":10,"h":10,"tim":1700000000104,"fsize":999}
-]}

@@ -1,6 +1,6 @@
 import { chromeKV, loadHistory, loadSettings, upsertHistory, normalizeSettings } from '../shared/storage';
 import { selectionKey, type DownloadResponse, type Msg } from '../shared/messaging';
-import { parseMediaUrl } from '../shared/media-detection';
+import { parseMediaUrlForSite } from '../shared/media-url';
 import type { DownloadOptions, MediaItem } from '../shared/types';
 import {
   chromeDownloadsPort, findMissingDownloads, historyFromItem, manifestsForBatch, planDownloads, toDataUrl,
@@ -8,7 +8,7 @@ import {
 import { QueueManager } from './queue-manager';
 import { ScanStore } from './scan-store';
 import { listBoardThreads, realDeps, scanThreads, validBoard } from './thread-scanner';
-import { chromePermissionsPort, hasSitePermission, requestSitePermission } from './site-permissions';
+import { chromePermissionsPort, ensureSiteScripts, hasSitePermission, registerSiteScripts } from './site-permissions';
 
 const chromeApi = (globalThis as any).chrome;
 const local = chromeKV('local');
@@ -144,7 +144,7 @@ async function checkLinks(tabId: number, ids: string[]) {
   const scan = await scans.get(tabId);
   if (!scan) return;
   const wanted = new Set(ids.slice(0, 2000));
-  const targets = scan.items.filter((i) => wanted.has(i.id) && parseMediaUrl(i.url));
+  const targets = scan.items.filter((i) => wanted.has(i.id) && parseMediaUrlForSite(i.site, i.url));
   const result = new Map<string, 'ok' | 'broken'>();
   let done = 0;
   const worker = async () => {
@@ -227,7 +227,7 @@ chromeApi.runtime.onMessage.addListener((msg: Msg, sender: any, sendResponse: (r
         await chromeApi.tabs.create({ url: chromeApi.runtime.getURL(`manager.html${tabId != null ? `?tab=${tabId}` : ''}`) });
         return { ok: true };
       }
-      case 'REQUEST_SITE_PERMISSION': return { ok: await requestSitePermission(msg.site, chromePermissionsPort()) };
+      case 'REGISTER_SITE_SCRIPTS': return { ok: await registerSiteScripts(msg.site, chromePermissionsPort()) };
       case 'SITE_PERMISSION_STATUS': return { ok: await hasSitePermission(msg.site, chromePermissionsPort()) };
       default: return { ok: false };
     }
@@ -236,5 +236,8 @@ chromeApi.runtime.onMessage.addListener((msg: Msg, sender: any, sendResponse: (r
 });
 
 chromeApi.tabs.onRemoved.addListener((tabId: number) => { threadScans.get(tabId)?.abort(); threadScans.delete(tabId); });
-chromeApi.runtime.onInstalled.addListener(() => { /* defaults are applied lazily by loadSettings */ });
+chromeApi.runtime.onInstalled.addListener(() => { void ensureSiteScripts(chromePermissionsPort()); });
+// Whenever access is granted (from options, the popup, or chrome://extensions), turn the scanner on and inject into open tabs.
+chromeApi.permissions?.onAdded?.addListener(() => { void ensureSiteScripts(chromePermissionsPort()); });
+chromeApi.runtime.onStartup.addListener(() => { void ensureSiteScripts(chromePermissionsPort()); });
 

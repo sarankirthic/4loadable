@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { detectPage, pageLabel } from '../content/page-detector';
+import { adapterFor } from '../shared/site-adapter';
+import { pageLabel } from '../content/page-detector';
 import { send, sendToTab, type DownloadResponse } from '../shared/messaging';
 import { countByType } from '../shared/media-filter';
 import type { PageInfo } from '../shared/types';
 import { useQueue, useScan, useSettings } from '../ui/hooks';
+import { requestSiteAccessFromPage } from '../background/site-permissions';
 
 export function App() {
   const [tabId, setTabId] = useState<number | null>(null);
@@ -18,12 +20,19 @@ export function App() {
     (globalThis as any).chrome.tabs.query({ active: true, currentWindow: true }).then(([t]: any[]) => {
       if (!t) return;
       setTabId(t.id);
-      try { const u = new URL(t.url ?? ''); setPage(detectPage(u, t.title ?? '')); } catch { setPage(detectPage({ hostname: '', pathname: '', href: '' })); }
+      const unsupported: PageInfo = { kind: 'unsupported', site: '', url: t.url ?? '', title: t.title ?? '' };
+      try { const u = new URL(t.url ?? ''); setPage(adapterFor(u)?.detectPage(u, t.title ?? '') ?? unsupported); } catch { setPage(unsupported); }
     });
   }, []);
 
   const counts = useMemo(() => countByType(scan?.items ?? []), [scan?.items]);
   const supported = page && page.kind !== 'unsupported';
+  const enableArchive = async () => {
+    try {
+      const ok = await requestSiteAccessFromPage('archiveofsins');
+      setMsg(ok ? { text: 'archiveofsins.com enabled. Reload the tab, then reopen this popup.', kind: 'ok' } : { text: 'Permission was not granted.', kind: 'bad' });
+    } catch (e) { setMsg({ text: `Could not request permission: ${(e as Error).message}`, kind: 'bad' }); }
+  };
   const q = useMemo(() => {
     const c = { pending: 0, active: 0, done: 0, failed: 0, skipped: 0 };
     for (const i of queue) {
@@ -53,7 +62,8 @@ export function App() {
   return (
     <div className="popup">
       <div><h1>4loadable</h1><div className="muted">{page ? pageLabel(page) : 'Loading…'}</div></div>
-      {!supported && page && <div className="notice">Open a 4chan board, catalog or thread to scan for media. You can still view the queue and history.</div>}
+      {!supported && page && <div className="notice">Open a 4chan board, catalog or thread, or an archiveofsins.com board or thread (enable it first in Settings), to scan for media. You can still view the queue and history.</div>}
+      {!supported && page && <div className="row"><button onClick={() => void enableArchive()}>Enable archiveofsins.com…</button></div>}
       <div className="stats" aria-label="Detected media">
         <div className="stat"><b>{scan?.items.length ?? 0}</b>Total</div>
         <div className="stat"><b style={{ color: 'var(--image)' }}>{counts.image}</b>Images</div>

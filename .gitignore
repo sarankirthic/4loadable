@@ -5,3 +5,14 @@ archive-fixtures.zip
 *.zip
 .DS_Store
 .idea/
+.claude/
+
+tests
+images/
+docs/
+
+archive-tests
+archive-fixtures.zip
+archiveofsins-fix.patch
+archiveofsins-permission-fix.patch
+archiveofsins-popup-only.patch

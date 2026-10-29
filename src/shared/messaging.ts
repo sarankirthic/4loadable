@@ -14,7 +14,7 @@ export type Msg =
   | { type: 'CHECK_LINKS'; tabId: number; ids: string[] }
   | { type: 'SELECT'; mode: 'replace' | 'add'; ids: string[]; tabId?: number }
   | { type: 'OPEN_MANAGER'; tabId?: number }
-  | { type: 'REQUEST_SITE_PERMISSION'; site: 'archiveofsins' }
+  | { type: 'REGISTER_SITE_SCRIPTS'; site: 'archiveofsins' }
   | { type: 'SITE_PERMISSION_STATUS'; site: 'archiveofsins' };
 
 // background -> content

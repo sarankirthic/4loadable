@@ -22,5 +22,5 @@ export function pageLabel(p: PageInfo): string {
   if (p.kind === 'thread') return `/${p.board}/ · thread ${p.threadId}`;
   if (p.kind === 'board') return `/${p.board}/ · board page`;
   if (p.kind === 'catalog') return `/${p.board}/ · catalog`;
-  return 'Not a 4chan board or thread';
+  return 'Not a supported board or thread';
 }

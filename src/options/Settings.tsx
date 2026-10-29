@@ -3,15 +3,24 @@ import { DEFAULT_SETTINGS } from '../shared/storage';
 import type { Settings as S } from '../shared/types';
 import { useSettings } from '../ui/hooks';
 import { send } from '../shared/messaging';
+import { requestSiteAccessFromPage } from '../background/site-permissions';
 
 export function SettingsPage() {
   const [s, update, loaded] = useSettings();
   const [saved, setSaved] = useState(false);
   const [archiveEnabled, setArchiveEnabled] = useState<boolean | null>(null);
   useEffect(() => { void send<{ ok: boolean }>({ type: 'SITE_PERMISSION_STATUS', site: 'archiveofsins' }).then((r) => setArchiveEnabled(!!r?.ok)); }, []);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
   const enableArchive = async () => {
-    const r = await send<{ ok: boolean }>({ type: 'REQUEST_SITE_PERMISSION', site: 'archiveofsins' });
-    setArchiveEnabled(!!r?.ok);
+    setArchiveError(null);
+    try {
+      // The prompt must be the first thing the click does, in this page (not the service worker), or Chrome rejects it.
+      const granted = await requestSiteAccessFromPage('archiveofsins');
+      if (!granted) { setArchiveError('Permission was not granted. Click the button again and choose Allow.'); return; }
+      const r = await send<{ ok: boolean }>({ type: 'REGISTER_SITE_SCRIPTS', site: 'archiveofsins' });
+      setArchiveEnabled(true);
+      if (!r?.ok) setArchiveError('Access granted, but the scanner could not be registered. Reload the extension and try again.');
+    } catch (e) { setArchiveError(`Could not request permission: ${(e as Error).message}`); }
   };
   const set = async (p: Partial<S>) => { await update(p); setSaved(true); setTimeout(() => setSaved(false), 1200); };
   const num = (k: 'maxConcurrent' | 'maxRetries' | 'confirmThreshold', min: number, max: number) => (
@@ -59,6 +68,7 @@ export function SettingsPage() {
         <p style={{ margin: 0 }}>archiveofsins.com (a 4chan archive) is supported but off by default — it needs its own browser permission before this extension can read its pages. Turning it on lets the extension scan and download media from archiveofsins.com the same way it does on 4chan: locally only, no analytics.</p>
         <div className="row" style={{ marginTop: 8 }}>
           {archiveEnabled ? <span className="muted">Enabled on archiveofsins.com</span> : <button onClick={() => void enableArchive()} disabled={archiveEnabled === null}>Enable on archiveofsins.com</button>}
+          {archiveError && <span role="alert" style={{ color: 'var(--bad, #c0392b)' }}>{archiveError}</span>}
         </div>
       </section>
 

@@ -47,14 +47,23 @@ export function detectPage(url: URL, title = ''): PageInfo {
 }
 
 const POSTS = 'article.thread, article.post';
+
+/** FoolFuuka nests replies (aside.posts > article.post) inside the OP's article.thread, so a plain
+ *  post.querySelector() can pick up a reply's file for an OP without one. Only match elements owned by `post`. */
+function own(post: Element, selector: string): Element | null {
+  for (const el of Array.from(post.querySelectorAll(selector))) {
+    if (el.closest(POSTS) === post) return el;
+  }
+  return null;
+}
 const yieldToBrowser = () => new Promise<void>((r) => setTimeout(r, 0));
 
 /** List OP threads on a board-index page (for the "scan selected threads" flow). */
 export function scanThreadList(root: ParentNode): ThreadSummary[] {
   const out: ThreadSummary[] = [];
   for (const el of Array.from(root.querySelectorAll('article.thread[id]'))) {
-    const teaser = (el.querySelector('.post_message, blockquote')?.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 140);
-    const thumbUrl = el.querySelector('.thread_image_box img.post_image')?.getAttribute('src') ?? undefined;
+    const teaser = (own(el, '.post_message, blockquote')?.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 140);
+    const thumbUrl = own(el, '.thread_image_box img.post_image')?.getAttribute('src') ?? undefined;
     out.push({ id: el.id, teaser: teaser || `Thread ${el.id}`, thumbUrl });
   }
   return out;
@@ -99,8 +108,8 @@ export async function scan(root: ParentNode, ctx: ScanContext, opts: ScanOptions
     if (opts.shouldCancel?.()) return { items: all, cancelled: true };
     const batch: MediaItem[] = [];
     for (const post of posts.slice(i, i + chunk)) {
-      const link = post.querySelector('.thread_image_box a.thread_image_link[href]');
-      const fileAnchor = post.querySelector('.post_file a.post_file_filename');
+      const link = own(post, '.thread_image_box a.thread_image_link[href]');
+      const fileAnchor = own(post, '.post_file a.post_file_filename');
       if (!link) {
         if (post.classList.contains('has_image') && !fileAnchor) {
           opts.onIgnored?.(`archiveofsins:removed:${post.id}`, 'removed', 'file removed from archive');
@@ -118,13 +127,13 @@ export async function scan(root: ParentNode, ctx: ScanContext, opts: ScanOptions
       const title = fileAnchor?.getAttribute('title');
       const text = (fileAnchor?.textContent ?? '').trim();
       const rawName = title || (/\(\.\.\.\)/.test(text) ? '' : text);
-      const metaText = post.querySelector('.post_file_metadata')?.textContent ?? '';
+      const metaText = own(post, '.post_file_metadata')?.textContent ?? '';
       const [sizePart, dimPart] = metaText.split(',');
       const dim = /(\d{1,5})\s*[x×]\s*(\d{1,5})/.exec(dimPart ?? metaText);
       const name = rawName ? splitName(rawName).base : parsed.tim;
       const postNo = post.id || ctx.defaultThreadId;
-      const threadId = ctx.defaultThreadId || postNo;
-      const thumbUrl = post.querySelector('.thread_image_box img.post_image')?.getAttribute('src') ?? undefined;
+      const threadId = ctx.defaultThreadId || post.closest('article.thread')?.id || postNo;
+      const thumbUrl = own(post, '.thread_image_box img.post_image')?.getAttribute('src') ?? undefined;
 
       batch.push({
         id, url: parsed.url, thumbUrl, site: 'archiveofsins', board: parsed.board, threadId, postNo, tim: parsed.tim,

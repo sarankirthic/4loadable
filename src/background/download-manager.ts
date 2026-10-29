@@ -1,5 +1,5 @@
 import { buildTargetPath, ensureUniquePaths, isSafeRelativePath } from '../shared/filename-utils';
-import { isThumbnailUrl, parseMediaUrl } from '../shared/media-detection';
+import { parseMediaUrlForSite } from '../shared/media-url';
 import type { DownloadOptions, DownloadSnapshot, HistoryRecord, MediaItem, NewQueueItem, QueueItem, Settings } from '../shared/types';
 import type { DownloadsPort } from './queue-manager';
 
@@ -26,10 +26,10 @@ export function planDownloads(inp: PlanInput): Plan {
   for (const item of inp.items) {
     if (seen.has(item.id)) { skipped.push({ id: item.id, reason: 'Duplicate in selection' }); continue; }
     seen.add(item.id);
-    const parsed = parseMediaUrl(item.url);
+    const parsed = parseMediaUrlForSite(item.site, item.url);
     if (!parsed) { skipped.push({ id: item.id, reason: 'Unsupported or untrusted URL' }); continue; }
     if (inp.types && !inp.types[item.type]) { skipped.push({ id: item.id, reason: `${item.type} files excluded` }); continue; }
-    if (inp.settings.fullResOnly && isThumbnailUrl(item.url)) { skipped.push({ id: item.id, reason: 'Thumbnail, not full resolution' }); continue; }
+    if (inp.settings.fullResOnly && parsed.isThumb) { skipped.push({ id: item.id, reason: 'Thumbnail, not full resolution' }); continue; }
     const prior = inp.history[item.id];
     if (inp.options.duplicates === 'skip' && prior?.status === 'complete' && !(prior.downloadId != null && inp.missingDownloadIds?.has(prior.downloadId))) {
       skipped.push({ id: item.id, reason: 'Already downloaded' }); continue;
