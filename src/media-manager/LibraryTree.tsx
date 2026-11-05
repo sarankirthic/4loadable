@@ -65,16 +65,15 @@ export function EntryList({ entries, empty, ...rest }: ListProps) {
 
 const TYPE_LABEL = { image: 'IMG', gif: 'GIF', video: 'VID' } as const;
 
-function EntryRow({ entry, index, selected, source, thumbs, draggable, onToggle, onOpen, onVisible, onDragStart }:
-  Omit<ListProps, 'entries' | 'empty'> & { entry: LibraryEntry; index: number }) {
+/** Lazy thumbnail + visibility tracking shared by the list row and grid card: bitmaps are
+ *  decoded only while the element is on screen, and released again on scroll-out/unmount. */
+function useEntryThumbnail(entry: LibraryEntry, wantsThumb: boolean, source: LibrarySource, thumbs: JobQueue, onVisible: (e: LibraryEntry) => void) {
   const ref = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const latest = useRef({ entry, onVisible });
   latest.current = { entry, onVisible };
   const key = entryKey(entry);
-  const wantsThumb = source.id === 'folder' && entry.kind === 'file' && entry.mediaType === 'image';
 
-  // Thumbnails (and lazy stat) only for rows actually on screen; bitmaps are released on scroll-out/unmount.
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof IntersectionObserver === 'undefined') return;
@@ -109,6 +108,52 @@ function EntryRow({ entry, index, selected, source, thumbs, draggable, onToggle,
     return () => { dead = true; io.disconnect(); release(); };
   }, [key, wantsThumb, source, thumbs]);
 
+  return { ref, canvas };
+}
+
+/** Right pane in grid mode: same entries, selection and click behavior as EntryList, as cards. */
+export function EntryGrid({ entries, empty, ...rest }: ListProps) {
+  return (
+    <VirtualGrid items={entries} itemHeight={176} minItemWidth={140} gap={8} getKey={entryKey} empty={empty}
+      render={(e, i) => <EntryCard entry={e} index={i} {...rest} />} />
+  );
+}
+
+function EntryCard({ entry, index, selected, source, thumbs, draggable, onToggle, onOpen, onVisible, onDragStart }:
+  Omit<ListProps, 'entries' | 'empty'> & { entry: LibraryEntry; index: number }) {
+  const key = entryKey(entry);
+  const wantsThumb = source.id === 'folder' && entry.kind === 'file' && entry.mediaType === 'image';
+  const { ref, canvas } = useEntryThumbnail(entry, wantsThumb, source, thumbs, onVisible);
+  const sel = selected.has(key);
+  const isTrash = entry.kind === 'folder' && entry.path.length === 1 && entry.name === TRASH_DIR;
+  const subtitle = entry.kind === 'folder' ? `${entry.fileCount ?? '—'} files`
+    : entry.size != null ? formatBytes(entry.size) : '—';
+  return (
+    <div ref={ref} className={`card${sel ? ' sel' : ''}${entry.missing ? ' broken' : ''}`} draggable={draggable && entry.kind === 'file'}
+      onDragStart={(e) => { e.dataTransfer.setData('text/plain', key); onDragStart(entry); }}>
+      <label className="tl" onClick={(e) => e.stopPropagation()}>
+        <input type="checkbox" checked={sel} aria-label={`Select ${entry.name}`} onChange={() => {}} onClick={(e) => onToggle(index, e.shiftKey)} />
+      </label>
+      {entry.missing && <div className="tr"><span className="badge" style={{ background: 'var(--bad)', color: '#fff' }}>missing</span></div>}
+      <button className="ghost thumb" onClick={() => onOpen(entry)} aria-label={isTrash ? 'Trash' : entry.name}>
+        {wantsThumb ? <canvas ref={canvas} width={140} height={140} aria-hidden="true" />
+          : entry.kind === 'folder' ? <span className="badge" style={{ background: 'var(--line)', color: 'var(--text)' }}>DIR</span>
+            : entry.mediaType ? <span className={`badge ${entry.mediaType}`}>{TYPE_LABEL[entry.mediaType]}</span>
+              : <span className="badge" style={{ background: 'var(--line)', color: 'var(--text)' }}>FILE</span>}
+      </button>
+      <div className="cap">
+        <div title={entry.path.join('/')}>{isTrash ? 'Trash' : entry.name}</div>
+        <div className="muted">{subtitle}</div>
+      </div>
+    </div>
+  );
+}
+
+function EntryRow({ entry, index, selected, source, thumbs, draggable, onToggle, onOpen, onVisible, onDragStart }:
+  Omit<ListProps, 'entries' | 'empty'> & { entry: LibraryEntry; index: number }) {
+  const wantsThumb = source.id === 'folder' && entry.kind === 'file' && entry.mediaType === 'image';
+  const { ref, canvas } = useEntryThumbnail(entry, wantsThumb, source, thumbs, onVisible);
+  const key = entryKey(entry);
   const sel = selected.has(key);
   const size = entry.kind === 'folder' ? entry.totalSize : entry.size;
   return (

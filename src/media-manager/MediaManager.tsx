@@ -32,6 +32,7 @@ export function MediaManager() {
   const [dialog, setDialog] = useState<null | 'selected' | 'all'>(null);
   const [toast, notify] = useToast();
   const anchor = useRef(0);
+  useEffect(() => { if (!settings.libraryTabEnabled && tab === 'library') setTab('media'); }, [settings.libraryTabEnabled, tab]);
 
   const items = scan?.items ?? [];
   const shown = useMemo(() => filterAndSort(items, filter), [items, filter]);
@@ -94,7 +95,7 @@ export function MediaManager() {
         <button onClick={() => (globalThis as any).chrome.runtime.openOptionsPage()}>Settings</button>
       </header>
       <nav className="tabs" role="tablist">
-        {([['media', `Media (${items.length})`], ...(multi ? [['threads', `Threads (${scan?.threads.length ?? 0})`]] : []), ['queue', `Queue (${queue.filter((q) => ['queued', 'starting', 'downloading', 'paused'].includes(q.status)).length})`], ['history', 'History'], ['library', 'Library']] as [Tab, string][])
+        {([['media', `Media (${items.length})`], ...(multi ? [['threads', `Threads (${scan?.threads.length ?? 0})`]] : []), ['queue', `Queue (${queue.filter((q) => ['queued', 'starting', 'downloading', 'paused'].includes(q.status)).length})`], ['history', 'History'], ...(settings.libraryTabEnabled ? [['library', 'Library']] : [])] as [Tab, string][])
           .map(([k, label]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)}>{label}</button>)}
       </nav>
 
@@ -148,7 +149,7 @@ export function MediaManager() {
       {tab === 'threads' && scan && TAB_ID != null && <ThreadsPanel scan={scan} tabId={TAB_ID} notify={notify} />}
       {tab === 'queue' && <DownloadQueue queue={queue} paused={paused} />}
       {tab === 'history' && <HistoryPanel history={history} />}
-      {tab === 'library' && <LibraryPanel rootFolder={settings.rootFolder} notify={notify}
+      {tab === 'library' && settings.libraryTabEnabled && <LibraryPanel rootFolder={settings.rootFolder} notify={notify} view={settings.view}
         queueActive={!paused && queue.some((q) => ['queued', 'starting', 'downloading'].includes(q.status))} />}
 
       {preview != null && <PreviewModal items={shown} index={preview} selected={selected} onClose={() => setPreview(null)} onNav={setPreview}

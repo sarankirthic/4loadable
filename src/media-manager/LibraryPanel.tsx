@@ -5,6 +5,7 @@ import { createFsLike, type FsLike } from '../shared/library-fs';
 import { TRASH_DIR } from '../shared/library-ops';
 import { createBrowserRecordsSource } from '../shared/library-source-browser';
 import { createFolderSource, type DirHandleLike } from '../shared/library-source-folder';
+import { pickDirectoryViaFileInput } from '../shared/library-source-filelist';
 import { createThumbnailQueue } from '../shared/library-thumbnails';
 import { filterEntries, sortEntries, type SortKey } from '../shared/library-tree';
 import type { LibraryEntry, LibrarySource, LibrarySourceId } from '../shared/library-types';
@@ -14,7 +15,7 @@ import { send as sendMsg, type Msg } from '../shared/messaging';
 import type { MediaType } from '../shared/types';
 import { LibraryOrganizeBar, movePlanRequest } from './LibraryOrganizeBar';
 import { LibraryPreviewModal } from './LibraryPreviewModal';
-import { EntryList, entryKey, LibraryTree } from './LibraryTree';
+import { EntryGrid, EntryList, entryKey, LibraryTree } from './LibraryTree';
 import { opLabel, OperationPreviewDialog, type PlanRequest, type RunFn } from './OperationPreviewDialog';
 
 type Mode = 'read' | 'readwrite';
@@ -27,7 +28,8 @@ export interface RootDirHandle extends DirHandleLike {
 /** Everything the panel needs from the outside world — injectable so tests can mount it with fakes. */
 export interface LibraryDeps {
   handleStore: HandleStore<RootDirHandle>;
-  /** null when the browser has no showDirectoryPicker. */
+  /** Falls back to the <input webkitdirectory> picker when showDirectoryPicker is unavailable
+   *  (e.g. Chrome extension pages); null only outside a DOM (tests, background contexts). */
   pickDirectory: ((o: { mode: 'read' }) => Promise<RootDirHandle>) | null;
   /** null when chrome.downloads isn't available. Resolves null when no download records sit under the root folder. */
   browserSource: (() => Promise<LibrarySource | null>) | null;
@@ -56,7 +58,8 @@ export function chromeLibraryDeps(rootFolder: string): LibraryDeps {
   const JOURNAL_KEY = 'libraryJournal';
   return {
     handleStore: indexedDBHandleStore<RootDirHandle>(),
-    pickDirectory: typeof picker === 'function' ? (o) => picker(o) : null,
+    pickDirectory: typeof picker === 'function' ? (o) => picker(o)
+      : typeof document !== 'undefined' ? () => pickDirectoryViaFileInput() : null,
     browserSource: c?.downloads ? async () => {
       const search = (q: { state?: 'complete' }) => c.downloads.search(q);
       const items: Array<{ filename: string }> = await search({ state: 'complete' });
@@ -94,9 +97,9 @@ const PERM_MESSAGE:Partial<Record<FolderPermissionState, string>> = {
 };
 const TYPE_OPTIONS: [string, string][] = [['', 'All types'], ['image', 'Images'], ['gif', 'GIFs'], ['video', 'Videos']];
 
-interface Props { rootFolder: string; notify(m: string): void; queueActive: boolean; deps?: LibraryDeps }
+interface Props { rootFolder: string; notify(m: string): void; queueActive: boolean; view: 'grid' | 'list'; deps?: LibraryDeps }
 
-export function LibraryPanel({ rootFolder, notify, queueActive, deps: injected }: Props) {
+export function LibraryPanel({ rootFolder, notify, queueActive, view, deps: injected }: Props) {
   const deps = useMemo(() => injected ?? chromeLibraryDeps(rootFolder), [injected, rootFolder]);
   const [perm, setPerm] = useState<FolderPermissionState | null>(null);
   const [handle, setHandle] = useState<RootDirHandle | null>(null);
@@ -429,8 +432,11 @@ export function LibraryPanel({ rootFolder, notify, queueActive, deps: injected }
                   <LibraryOrganizeBar path={path} selection={selection} folderFiles={files} fs={fs} canUndo={canUndo}
                     onRequest={setPlanReq} onUndo={() => void undo()} onEmptyTrash={() => void emptyTrash()} onReadOnly={() => setOrganizing(false)} withStats={withStats} />
                 )}
-                <EntryList entries={shown} selected={selected} source={source} thumbs={thumbs} draggable={organize}
-                  onToggle={onToggle} onOpen={onOpen} onVisible={(e) => void requestStat(e)} onDragStart={onDragStart} empty={empty} />
+                {view === 'grid'
+                  ? <EntryGrid entries={shown} selected={selected} source={source} thumbs={thumbs} draggable={organize}
+                      onToggle={onToggle} onOpen={onOpen} onVisible={(e) => void requestStat(e)} onDragStart={onDragStart} empty={empty} />
+                  : <EntryList entries={shown} selected={selected} source={source} thumbs={thumbs} draggable={organize}
+                      onToggle={onToggle} onOpen={onOpen} onVisible={(e) => void requestStat(e)} onDragStart={onDragStart} empty={empty} />}
                 <div className="actionbar">
                   <strong>{selected.size} selected</strong>
                   <span className="grow" />

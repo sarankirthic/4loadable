@@ -61,6 +61,8 @@ export function SettingsPage() {
         <div className="field"><label htmlFor="vw">Media view</label><select id="vw" value={s.view} onChange={(e) => set({ view: e.target.value as S['view'] })}><option value="grid">Grid</option><option value="list">List</option></select></div>
         {check('rememberSelection', 'Remember the last selection for each thread')}
         {check('inPageToolbar', 'Show the small toolbar on 4chan pages')}
+        {check('libraryTabEnabled', 'Show the Library tab')}
+        <p>*Browse, preview and organize downloaded files; some browsers report "no File System Access API" and fall back to picking the folder manually each time you open it, read-only</p>
         <div><button onClick={() => confirm('Reset all settings to defaults?') && set(DEFAULT_SETTINGS)}>Reset to defaults</button></div>
       </section>
 

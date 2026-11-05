@@ -83,6 +83,7 @@ export interface Settings extends DownloadOptions {
   includeQuoted: boolean;
   fullResOnly: boolean;
   inPageToolbar: boolean;
+  libraryTabEnabled: boolean;
 }
 
 export type QueueStatus =

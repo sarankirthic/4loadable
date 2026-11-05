@@ -12,6 +12,7 @@ export function App() {
   const [page, setPage] = useState<PageInfo | null>(null);
   const [msg, setMsg] = useState<{ text: string; kind?: 'bad' | 'ok' } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [archiveEnabled, setArchiveEnabled] = useState(false);
   const [scan] = useScan(tabId);
   const { queue } = useQueue();
   useSettings();
@@ -23,6 +24,7 @@ export function App() {
       const unsupported: PageInfo = { kind: 'unsupported', site: '', url: t.url ?? '', title: t.title ?? '' };
       try { const u = new URL(t.url ?? ''); setPage(adapterFor(u)?.detectPage(u, t.title ?? '') ?? unsupported); } catch { setPage(unsupported); }
     });
+    void send<{ ok: boolean }>({ type: 'SITE_PERMISSION_STATUS', site: 'archiveofsins' }).then((r) => setArchiveEnabled(!!r?.ok));
   }, []);
 
   const counts = useMemo(() => countByType(scan?.items ?? []), [scan?.items]);
@@ -30,6 +32,7 @@ export function App() {
   const enableArchive = async () => {
     try {
       const ok = await requestSiteAccessFromPage('archiveofsins');
+      if (ok) { setArchiveEnabled(true); await send<{ ok: boolean }>({ type: 'REGISTER_SITE_SCRIPTS', site: 'archiveofsins' }); }
       setMsg(ok ? { text: 'archiveofsins.com enabled. Reload the tab, then reopen this popup.', kind: 'ok' } : { text: 'Permission was not granted.', kind: 'bad' });
     } catch (e) { setMsg({ text: `Could not request permission: ${(e as Error).message}`, kind: 'bad' }); }
   };
@@ -63,7 +66,7 @@ export function App() {
     <div className="popup">
       <div><h1>4loadable</h1><div className="muted">{page ? pageLabel(page) : 'Loading…'}</div></div>
       {!supported && page && <div className="notice">Open a 4chan board, catalog or thread, or an archiveofsins.com board or thread (enable it first in Settings), to scan for media. You can still view the queue and history.</div>}
-      {!supported && page && <div className="row"><button onClick={() => void enableArchive()}>Enable archiveofsins.com…</button></div>}
+      {!supported && page && !archiveEnabled && <div className="row"><button onClick={() => void enableArchive()}>Enable archiveofsins.com…</button></div>}
       <div className="stats" aria-label="Detected media">
         <div className="stat"><b>{scan?.items.length ?? 0}</b>Total</div>
         <div className="stat"><b style={{ color: 'var(--image)' }}>{counts.image}</b>Images</div>

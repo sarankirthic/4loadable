@@ -48,7 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   types: { image: true, gif: true, video: true },
   maxConcurrent: 3, maxRetries: 2, view: 'grid', theme: 'dark',
   confirmBulk: true, confirmThreshold: 50, rememberSelection: false,
-  includeQuoted: false, fullResOnly: true, inPageToolbar: true,
+  includeQuoted: false, fullResOnly: true, inPageToolbar: true, libraryTabEnabled: false,
 };
 
 const clamp = (n: unknown, lo: number, hi: number, d: number) => {
@@ -76,6 +76,7 @@ export function normalizeSettings(raw: Partial<Settings> | undefined): Settings 
     confirmBulk: bool(r.confirmBulk, d.confirmBulk), confirmThreshold: clamp(r.confirmThreshold, 1, 100000, d.confirmThreshold),
     rememberSelection: bool(r.rememberSelection, d.rememberSelection), includeQuoted: bool(r.includeQuoted, d.includeQuoted),
     fullResOnly: bool(r.fullResOnly, d.fullResOnly), inPageToolbar: bool(r.inPageToolbar, d.inPageToolbar),
+    libraryTabEnabled: bool(r.libraryTabEnabled, d.libraryTabEnabled),
   };
 }
 
