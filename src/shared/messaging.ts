@@ -15,7 +15,11 @@ export type Msg =
   | { type: 'SELECT'; mode: 'replace' | 'add'; ids: string[]; tabId?: number }
   | { type: 'OPEN_MANAGER'; tabId?: number }
   | { type: 'REGISTER_SITE_SCRIPTS'; site: 'archiveofsins' }
-  | { type: 'SITE_PERMISSION_STATUS'; site: 'archiveofsins' };
+  | { type: 'SITE_PERMISSION_STATUS'; site: 'archiveofsins' }
+  // Library tab -> background: keep history in sync after a move/rename/trash so duplicate-skip
+  // doesn't re-download a file the user just organized. Empty `to` means the file was deleted
+  // (e.g. trash emptied), which clears the record's libraryPath.
+  | { type: 'LIBRARY_PATHS_CHANGED'; changes: Array<{ from: string[]; to: string[] }> };
 
 // background -> content
 export type TabMsg = { type: 'SCAN_PAGE' } | { type: 'CANCEL_SCAN' } | { type: 'GET_VISIBLE_IDS' } | { type: 'SETTINGS_CHANGED' };

@@ -48,7 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   types: { image: true, gif: true, video: true },
   maxConcurrent: 3, maxRetries: 2, view: 'grid', theme: 'dark',
   confirmBulk: true, confirmThreshold: 50, rememberSelection: false,
-  includeQuoted: false, fullResOnly: true, inPageToolbar: true,
+  includeQuoted: false, fullResOnly: true, inPageToolbar: true, libraryTabEnabled: false,
 };
 
 const clamp = (n: unknown, lo: number, hi: number, d: number) => {
@@ -76,6 +76,7 @@ export function normalizeSettings(raw: Partial<Settings> | undefined): Settings 
     confirmBulk: bool(r.confirmBulk, d.confirmBulk), confirmThreshold: clamp(r.confirmThreshold, 1, 100000, d.confirmThreshold),
     rememberSelection: bool(r.rememberSelection, d.rememberSelection), includeQuoted: bool(r.includeQuoted, d.includeQuoted),
     fullResOnly: bool(r.fullResOnly, d.fullResOnly), inPageToolbar: bool(r.inPageToolbar, d.inPageToolbar),
+    libraryTabEnabled: bool(r.libraryTabEnabled, d.libraryTabEnabled),
   };
 }
 
@@ -121,4 +122,58 @@ async function upsertHistoryUnsafe(kv: KV, records: HistoryRecord[], cap: number
     h = pruneHistory(h, Math.floor(Object.keys(h).length * 0.8));
     await kv.set({ history: h });
   }
+}
+
+// ---- Keeping history in sync with Library-tab moves/renames/trashes (Task 10) ----
+
+const lastSegmentOf = (p: string) => p.split('/').pop() ?? p;
+const MEDIA_LEAF_FOLDERS = new Set(['images', 'gifs', 'videos']);
+
+/** Board/threadId sit immediately before the optional images/gifs/videos leaf and the filename,
+ *  mirroring buildTargetPath's `[site, board, threadId, typeFolder?]` layout. Returns undefined
+ *  when the path is too short to contain them (e.g. 'flat' organize mode). */
+function boardThreadFromPath(path: string[]): { board: string; threadId: string } | undefined {
+  let dirs = path.slice(0, -1);
+  if (dirs.length && MEDIA_LEAF_FOLDERS.has(dirs[dirs.length - 1])) dirs = dirs.slice(0, -1);
+  if (dirs.length < 2) return undefined;
+  const [board, threadId] = dirs.slice(-2);
+  return { board, threadId };
+}
+
+/** Match a library move/rename/trash `from` path to the history record it came from: same filename
+ *  (last segment of `savedPath`), and same board/thread when derivable from the path. Returns
+ *  undefined rather than guessing when more than one record still matches. */
+export function matchHistoryByPath(history: Record<string, HistoryRecord>, fromPath: string[]): HistoryRecord | undefined {
+  if (!fromPath.length) return undefined;
+
+  // Exact match first: does the op's `from` equal any record's current effective path exactly?
+  // This covers every non-canonical layout (trash, sorted folders, user-created folders) where
+  // the board/thread heuristic below can't find — or actively misreads — board/thread segments
+  // (e.g. a trashed path's `.4loadable-trash/<date>` segments look like board/thread to it).
+  const fromStr = fromPath.join('/');
+  const exact = Object.values(history).filter((r) => (r.libraryPath ?? r.savedPath) === fromStr);
+  if (exact.length === 1) return exact[0];
+
+  const lastSeg = fromPath[fromPath.length - 1];
+  // Fallback heuristic, still needed for the very first move off a file's original savedPath:
+  // savedPath may carry a rootFolder/subfolder prefix that the op's root-relative `from` lacks,
+  // so it won't match exactly even though it's the right record.
+  let candidates = Object.values(history).filter((r) => lastSegmentOf(r.libraryPath ?? r.savedPath) === lastSeg);
+  const bt = boardThreadFromPath(fromPath);
+  if (bt) candidates = candidates.filter((r) => r.board === bt.board && r.threadId === bt.threadId);
+  return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+/** Apply LIBRARY_PATHS_CHANGED: for each completed move/rename/trash op, find the matching history
+ *  record and update its libraryPath. An empty `to` (the trashed copy was permanently deleted) clears
+ *  libraryPath so planDownloads' duplicate-skip stops treating the file as present. */
+export async function applyLibraryPathChanges(kv: KV, changes: Array<{ from: string[]; to: string[] }>): Promise<void> {
+  const history = await loadHistory(kv);
+  const updates: HistoryRecord[] = [];
+  for (const { from, to } of changes) {
+    const match = matchHistoryByPath(history, from);
+    if (!match) continue;
+    updates.push({ ...match, libraryPath: to.length ? to.join('/') : undefined });
+  }
+  if (updates.length) await upsertHistory(kv, updates);
 }

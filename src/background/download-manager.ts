@@ -31,7 +31,10 @@ export function planDownloads(inp: PlanInput): Plan {
     if (inp.types && !inp.types[item.type]) { skipped.push({ id: item.id, reason: `${item.type} files excluded` }); continue; }
     if (inp.settings.fullResOnly && parsed.isThumb) { skipped.push({ id: item.id, reason: 'Thumbnail, not full resolution' }); continue; }
     const prior = inp.history[item.id];
-    if (inp.options.duplicates === 'skip' && prior?.status === 'complete' && !(prior.downloadId != null && inp.missingDownloadIds?.has(prior.downloadId))) {
+    // A download the browser reports as missing is still "present" if the Library tab moved it (libraryPath set):
+    // that's an organize action, not a deletion, so re-downloading would be wrong.
+    const reportedMissing = prior?.libraryPath == null && prior?.downloadId != null && inp.missingDownloadIds?.has(prior.downloadId);
+    if (inp.options.duplicates === 'skip' && prior?.status === 'complete' && !reportedMissing) {
       skipped.push({ id: item.id, reason: 'Already downloaded' }); continue;
     }
     const safe = { ...item, url: parsed.url, ext: parsed.ext, type: parsed.type };

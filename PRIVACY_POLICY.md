@@ -43,6 +43,44 @@ browser and 4chan's own infrastructure:
 No request is ever sent to any server other than 4chan's own domains. No
 third party receives any data from this extension.
 
+## The Library tab
+
+The Library tab lets you browse and organize files you've already
+downloaded. It makes no network requests at all — everything it does is
+local disk access through your browser.
+
+- **Browse-only by default.** Connecting a folder only reads it, to show a
+  file tree, thumbnails and previews.
+- **Write access only when you ask for it.** Moving, renaming or trashing
+  files requires clicking "Enable organizing," which is what triggers the
+  browser's own write-permission prompt. That prompt never appears before
+  you click it.
+- **Never writes outside the folder you chose.** Every move, rename or
+  trash is confined to the library folder you selected.
+- **Trash, not permanent deletion.** Deleting a file through the Library
+  tab moves it to a trash folder inside your library; a separate, clearly
+  confirmed "Empty trash" action is the only way to delete it for good.
+- **The undo journal stores paths only.** To support "Undo last," the
+  extension records which file moved from where to where — never any file
+  content.
+- **`manifest.json` files are left untouched.** Moving a file does not
+  rewrite the manifest that was saved next to it at download time; only the
+  extension's own local history is updated so duplicate detection keeps
+  working.
+- **No new permissions.** The Library tab uses the File System Access API,
+  a browser capability granted per-folder through the browser's own picker
+  and permission prompts, not an extension permission, together with the
+  `downloads` permission already listed below.
+- **Nothing is ever uploaded.** As with the rest of the extension, Library
+  tab data and actions never leave your device.
+
+Two limitations are deliberate, not bugs: folders themselves cannot be
+moved, renamed or trashed in this release (only files can), and cancelling
+an in-progress move may finish copying the one file already underway before
+it stops, on filesystems that lack a native move operation — no data is
+ever lost either way, since the source file is left intact until a move is
+verified.
+
 ## Permissions
 
 | Permission | Purpose |

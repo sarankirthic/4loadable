@@ -10,7 +10,7 @@
     "build:firefox": "node scripts/build.mjs --production --firefox",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "test:dom": "node tests/dom/run-dom-tests.mjs",
+    "test:dom": "node tests/dom/run-dom-tests.mjs && node tests/dom/library-dom.mjs",
     "test:e2e": "node tests/dom/e2e.mjs",
     "icons": "node scripts/make-icons.mjs"
   },
@@ -23,7 +23,7 @@
     "@types/node": "^22.7.0",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
-    "esbuild": "^0.23.1",
+    "esbuild": "^0.28.2",
     "playwright": "^1.48.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4"

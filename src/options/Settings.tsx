@@ -61,6 +61,8 @@ export function SettingsPage() {
         <div className="field"><label htmlFor="vw">Media view</label><select id="vw" value={s.view} onChange={(e) => set({ view: e.target.value as S['view'] })}><option value="grid">Grid</option><option value="list">List</option></select></div>
         {check('rememberSelection', 'Remember the last selection for each thread')}
         {check('inPageToolbar', 'Show the small toolbar on 4chan pages')}
+        {check('libraryTabEnabled', 'Show the Library tab')}
+        <p>*Browse, preview and organize downloaded files; some browsers report "no File System Access API" and fall back to picking the folder manually each time you open it, read-only</p>
         <div><button onClick={() => confirm('Reset all settings to defaults?') && set(DEFAULT_SETTINGS)}>Reset to defaults</button></div>
       </section>
 
@@ -74,6 +76,7 @@ export function SettingsPage() {
 
       <section><h2>Privacy</h2>
         <p style={{ margin: 0 }}>Everything stays on your device. The extension has no server, analytics, or ads. It sends no media URLs or browsing history anywhere. Its only network requests go to 4chan itself: the file downloads you start, 4chan’s public thread API when you scan threads (limited to one request per second), and optional HEAD checks when you click "Check for deleted files". Settings, scan results, the queue and history are kept in your browser’s extension storage.</p>
+        <p style={{ margin: '8px 0 0' }}>The Library tab is browse-only by default — connecting a folder only reads it for thumbnails and preview. Write access (move, rename, trash) is requested only after you click "Enable organizing"; the browser's own permission prompt never appears before then. It never writes outside the folder you chose, and deleting moves files to a trash folder rather than deleting them permanently. The undo journal stores only file paths, never file contents, and moving a file never rewrites `manifest.json`. The Library tab adds no new permissions and, like everything else here, never uploads anything.</p>
       </section>
 
       <section><h2>Permissions</h2>
