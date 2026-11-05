@@ -33,7 +33,7 @@ input[type=checkbox]{accent-color:var(--accent)}
 .notice.bad{border-left-color:var(--bad)}.notice.ok{border-left-color:var(--ok)}
 .empty{padding:40px 16px;text-align:center;color:var(--muted)}
 /* popup */
-.popup{width:380px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.popup{width:380px;padding:12px;display:flex;flex-direction:column;gap:10px;}
 .popup h1{font-size:14px;margin:0;font-weight:700}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .stat{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:6px;text-align:center}
@@ -41,6 +41,11 @@ input[type=checkbox]{accent-color:var(--accent)}
 .activity{max-height:120px;overflow:auto;margin:0;padding:0;list-style:none}
 .activity li{display:flex;gap:6px;padding:2px 0;border-bottom:1px dotted var(--line)}
 .activity .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.kofi-row{justify-content:center;margin-top:2px;padding-top:10px;border-top:1px solid var(--line)}
+.kofi{display:inline-flex;align-items:center;padding:4px;margin:-4px;border-radius:6px}
+.kofi img{height:90px;width:auto;display:block;border-radius:3px}
+.kofi:hover{background:var(--panel)}
+.kofi:hover img{opacity:.85}
 /* manager */
 .app{display:flex;flex-direction:column;height:100vh}
 header.top{display:flex;align-items:center;gap:12px;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--panel)}

@@ -93,6 +93,11 @@ export function App() {
       )}
       <div className="row"><a href="#" onClick={(e) => { e.preventDefault(); openManager(); }}>Open full media manager</a><span className="grow" />
         <a href="#" onClick={(e) => { e.preventDefault(); (globalThis as any).chrome.runtime.openOptionsPage(); }}>Settings</a></div>
+      <div className="row kofi-row">
+        <a className="kofi" href="https://ko-fi.com/sarankirthic" target="_blank" rel="noopener noreferrer" title="Support this project on Ko-fi" aria-label="Support me on Ko-fi">
+          <img src="kofi-button.png" alt="Support me on Ko-fi" width={580} height={146} />
+        </a>
+      </div>
     </div>
   );
 }
